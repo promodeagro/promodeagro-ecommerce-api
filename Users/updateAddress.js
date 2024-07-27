@@ -21,9 +21,9 @@ async function checkUserExists(userId) {
 }
 
 exports.handler = async (event) => {
-    const { userId, addressId, apartmentName, flatNo } = JSON.parse(event.body);
+    const { userId, addressId, apartmentName, flatNo , Area} = JSON.parse(event.body);
 
-    if (!userId || !addressId || !apartmentName || !flatNo) {
+    if (!userId || !addressId || !apartmentName || !flatNo || !Area) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Missing required fields" }),
@@ -32,7 +32,8 @@ exports.handler = async (event) => {
 
     const address = {
         apartmentName: apartmentName,
-        flatNo: flatNo
+        flatNo: flatNo,
+        Area: Area
     };
 
     try {

@@ -40,9 +40,9 @@ async function getUserDetails(userId) {
 }
 
 exports.handler = async (event) => {
-    const { userId, apartmentName, flatNo } = JSON.parse(event.body);
+    const { userId, apartmentName, flatNo , Area } = JSON.parse(event.body);
 
-    if (!userId || !apartmentName || !flatNo) {
+    if (!userId || !apartmentName || !flatNo || !Area) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Missing required fields" }),
@@ -51,7 +51,8 @@ exports.handler = async (event) => {
 
     const address = {
         apartmentName: apartmentName,
-        flatNo: flatNo
+        flatNo: flatNo,
+        Area: Area
     };
 
     try {
