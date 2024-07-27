@@ -1,5 +1,4 @@
 const AWS = require('aws-sdk');
-const crypto = require('crypto');
 const docClient = new AWS.DynamoDB.DocumentClient();
 require('dotenv').config();
 
@@ -22,14 +21,19 @@ async function checkUserExists(userId) {
 }
 
 exports.handler = async (event) => {
-    const { userId, addressId, address } = JSON.parse(event.body);
+    const { userId, addressId, apartmentName, flatNo } = JSON.parse(event.body);
 
-    if (!userId || !addressId || !address) {
+    if (!userId || !addressId || !apartmentName || !flatNo) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Missing required fields" }),
         };
     }
+
+    const address = {
+        apartmentName: apartmentName,
+        flatNo: flatNo
+    };
 
     try {
         // Check if user exists
@@ -59,7 +63,7 @@ exports.handler = async (event) => {
         updateExpression = updateExpression.slice(0, -2);
 
         const params = {
-            TableName: 'Addresses',
+            TableName: 'Addresses', // Replace with your actual Addresses table name
             Key: {
                 userId: userId,
                 addressId: addressId,
@@ -70,12 +74,13 @@ exports.handler = async (event) => {
             ReturnValues: 'UPDATED_NEW',
         };
 
-        await docClient.update(params).promise();
+        const result = await docClient.update(params).promise();
         return {
             statusCode: 200,
-            body: JSON.stringify({ message: "Address updated successfully" }),
+            body: JSON.stringify({ message: "Address updated successfully", updatedAttributes: result.Attributes }),
         };
     } catch (error) {
+        console.error('Error processing request:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({ message: "Internal Server Error", error: error.message }),

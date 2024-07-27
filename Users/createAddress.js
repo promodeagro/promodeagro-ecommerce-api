@@ -40,14 +40,19 @@ async function getUserDetails(userId) {
 }
 
 exports.handler = async (event) => {
-    const { userId, address } = JSON.parse(event.body);
+    const { userId, apartmentName, flatNo } = JSON.parse(event.body);
 
-    if (!userId || !address) {
+    if (!userId || !apartmentName || !flatNo) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Missing required fields" }),
         };
     }
+
+    const address = {
+        apartmentName: apartmentName,
+        flatNo: flatNo
+    };
 
     try {
         // Check if user exists

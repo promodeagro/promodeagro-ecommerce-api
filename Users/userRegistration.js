@@ -17,6 +17,7 @@ async function checkMobileNumberExists(mobileNumber) {
     try {
         const data = await docClient.query(params).promise();
         return data.Count > 0;
+        console.log(params)
     } catch (error) {
         console.error('Error checking mobile number:', error);
         throw error;
