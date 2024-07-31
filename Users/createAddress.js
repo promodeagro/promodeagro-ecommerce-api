@@ -21,28 +21,38 @@ async function checkUserExists(userId) {
     }
 }
 
-// Function to get user details
-async function getUserDetails(userId) {
+// Function to fetch apartment names based on location
+async function fetchApartmentsByLocation(location) {
     const params = {
-        TableName: process.env.USERS_TABLE,
-        Key: {
-            UserId: userId,
+        TableName: 'Apartments', // Assume you have a table storing apartment details
+        IndexName: 'Location-index', // Assume you have a secondary index on Location
+        KeyConditionExpression: '#location = :location',
+        ExpressionAttributeNames: {
+            '#location': 'Location',
+        },
+        ExpressionAttributeValues: {
+            ':location': location,
         },
     };
 
     try {
-        const data = await docClient.get(params).promise();
-        return data.Item;
+        const data = await docClient.query(params).promise();
+        return data.Items.map(item => item.apartmentName);
     } catch (error) {
-        console.error('Error retrieving user details:', error);
-        throw error;
+        if (error.code === 'ResourceNotFoundException') {
+            console.warn(`No apartments found for location: ${location}`);
+            return []; // Return an empty array if no apartments are found
+        } else {
+            console.error('Error fetching apartments by location:', error);
+            throw error;
+        }
     }
 }
 
 exports.handler = async (event) => {
-    const { userId, address } = JSON.parse(event.body);
+    const { userId, addressId, addressType, location, apartmentName, BlockName, flatNo, area, Landmark } = JSON.parse(event.body);
 
-    if (!userId || !address) {
+    if (!userId || !addressType) {
         return {
             statusCode: 400,
             body: JSON.stringify({ message: "Missing required fields" }),
@@ -60,43 +70,92 @@ exports.handler = async (event) => {
             };
         }
 
-        // Get user details
-        const user = await getUserDetails(userId);
+        let address = {};
+        const newAddressId = crypto.randomUUID();  // Generate a unique address ID if addressId is not provided
 
-        const addressId = crypto.randomUUID();
+        if (addressType === 'Apartment') {
+            if (!location || !apartmentName || !flatNo) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ message: "Missing required fields for apartment address" }),
+                };
+            }
 
-        // Create the new address
-        const addressParams = {
-            TableName: 'Addresses',
-            Item: {
-                userId: userId,
-                addressId: addressId,
-                ...address,
-            },
-        };
+            // Fetch all apartments based on user input location
+            const availableApartments = await fetchApartmentsByLocation(location);
 
-        await docClient.put(addressParams).promise();
+            // Proceed with saving the address even if the apartment name is not found
+            if (availableApartments.length > 0 && !availableApartments.includes(apartmentName)) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ message: "Invalid apartment name for the given location" }),
+                };
+            }
 
-        // If no default address exists, set the new address as the default
-        if (!user.defaultAddressId) {
-            const updateParams = {
-                TableName: process.env.USERS_TABLE,
-                Key: {
-                    UserId: userId,
-                },
-                UpdateExpression: 'set defaultAddressId = :addressId',
-                ExpressionAttributeValues: {
-                    ':addressId': addressId,
-                },
-                ReturnValues: 'UPDATED_NEW',
+            address = {
+                apartmentName,
+                flatNo,
+                location,
+                BlockName,
+            };
+        } else if (addressType === 'Individual House') {
+            if (!location || !flatNo || !area) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({ message: "Missing required fields for individual address" }),
+                };
+            }
+
+            address = {
+                location,
+                flatNo,
+                area,
             };
 
-            await docClient.update(updateParams).promise();
+            // Add Landmark if provided
+            if (Landmark) {
+                address.Landmark = Landmark;
+            }
+        } else {
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ message: "Invalid address type" }),
+            };
         }
 
+        // Build the UpdateExpression dynamically based on the provided fields in 'address'
+        let updateExpression = 'set ';
+        const expressionAttributeValues = {};
+        const expressionAttributeNames = {};
+
+        Object.keys(address).forEach((key, index) => {
+            const attrName = `#attr${index}`;
+            const attrValue = `:val${index}`;
+            updateExpression += `${attrName} = ${attrValue}, `;
+            expressionAttributeNames[attrName] = key;
+            expressionAttributeValues[attrValue] = address[key];
+        });
+
+        // Remove the trailing comma and space from the UpdateExpression
+        updateExpression = updateExpression.slice(0, -2);
+
+        const params = {
+            TableName: 'Addresses',
+            Key: {
+                userId: userId,
+                addressId: addressId || newAddressId, // Use the provided addressId or generate a new one
+            },
+            UpdateExpression: updateExpression,
+            ExpressionAttributeNames: expressionAttributeNames,
+            ExpressionAttributeValues: expressionAttributeValues,
+            ReturnValues: 'UPDATED_NEW',
+        };
+
+        const result = await docClient.update(params).promise();
+
         return {
-            statusCode: 201,
-            body: JSON.stringify({ addressId }),
+            statusCode: 200,
+            body: JSON.stringify({ message: "Address updated successfully", updatedAttributes: result.Attributes }),
         };
     } catch (error) {
         console.error('Error processing request:', error);

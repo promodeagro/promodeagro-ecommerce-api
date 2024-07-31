@@ -17,6 +17,7 @@ async function checkMobileNumberExists(mobileNumber) {
     try {
         const data = await docClient.query(params).promise();
         return data.Count > 0;
+        console.log(params)
     } catch (error) {
         console.error('Error checking mobile number:', error);
         throw error;
@@ -44,6 +45,7 @@ async function checkNameExists(name) {
         console.error('Error checking name:', error);
         throw error;
     }
+
 }
 
 exports.handler = async (event) => {
@@ -57,6 +59,9 @@ exports.handler = async (event) => {
     }
 
     // Ensure mobileNumber is a valid format (basic validation)
+
+
+    
     const mobileRegex = /^[0-9]{10}$/;
     if (!mobileRegex.test(mobileNumber)) {
         return {
