@@ -45,6 +45,7 @@ async function checkNameExists(name) {
         console.error('Error checking name:', error);
         throw error;
     }
+
 }
 
 exports.handler = async (event) => {
@@ -58,6 +59,9 @@ exports.handler = async (event) => {
     }
 
     // Ensure mobileNumber is a valid format (basic validation)
+
+
+    
     const mobileRegex = /^[0-9]{10}$/;
     if (!mobileRegex.test(mobileNumber)) {
         return {

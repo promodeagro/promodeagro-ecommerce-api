@@ -69,6 +69,7 @@ getAllAddress:
 
 deleteUserAddress:
   handler: Users/deleteAddress.handler
+  timeout: 500
   events:
     - httpApi:
         path: /deleteAddress
