@@ -44,7 +44,7 @@ async function sendDocumentMessage (phoneNumber, documentLink, documentName){
         redirect: "follow"
     };
 
-    return fetch("https://graph.facebook.com/v18.0/208582795666783/messages", requestOptions)
+    return fetch("https://graph.facebook.com/v19.0/208582795666783/messages", requestOptions)
         .then((response) => response.text())
         .then((result) => result)
         .catch((error) => error);

@@ -1,0 +1,953 @@
+const puppeteer = require('puppeteer');
+const AWS = require('aws-sdk');
+const s3 = new AWS.S3();
+require('dotenv').config();
+const axios = require('axios');
+
+const whatsappToken = process.env.FACEBOOK_ACCESS_TOKEN;
+
+
+async function generateBillImage(items, orderData = {}) {
+    console.log(orderData,"order data from generate bill")
+    console.log("OrderData structure:", JSON.stringify(orderData, null, 2));
+    console.log("Items structure:", JSON.stringify(items, null, 2));
+    
+    // Validate and sanitize input parameters
+    if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('Items must be a non-empty array');
+    }
+
+    // Helper function to safely get nested object properties
+    const getNestedValue = (obj, path, defaultValue = '') => {
+        try {
+            return path.split('.').reduce((current, key) => {
+                return current && current[key] !== undefined ? current[key] : defaultValue;
+            }, obj);
+        } catch (error) {
+            return defaultValue;
+        }
+    };
+
+    // Helper function to format currency
+    const formatCurrency = (amount) => {
+        const num = parseFloat(amount) || 0;
+        return `₹${num.toFixed(2)}`;
+    };
+
+    // Helper function to format date
+    const formatDateTime = (date) => {
+        try {
+            const d = new Date(date);
+            return d.toLocaleString('en-IN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch (error) {
+            return new Date().toLocaleString('en-IN');
+        }
+    };
+
+    // Calculate totals and format items based on user's structure
+    let totalPrice = 0;
+    let itemsList = items.map((item, index) => {
+        // Handle user's structure: price, quantity, productName, unit, subtotal
+        const price = parseFloat(item.price) || 0;
+        const quantity = parseInt(item.quantity) || 0;
+        const subtotal = parseFloat(item.subtotal) || (price * quantity);
+        totalPrice += subtotal;
+
+        return {
+            name: item.productName || item.name || 'Unknown Product',
+            price: price.toFixed(2),
+            quantity: quantity.toString(),
+            unit: item.unit || 'Piece',
+            subtotal: subtotal.toFixed(2)
+        };
+    });
+
+    // Map user's structure to expected variables
+    const variables = {
+        // Payment status - map from paymentDetails.method or paymentMethod
+        paymentStatus: (() => {
+            const paymentMethod = getNestedValue(orderData, 'paymentDetails.method') || 
+                                 getNestedValue(orderData, 'paymentMethod') || 
+                                 getNestedValue(orderData, 'payment_method') ||
+                                 getNestedValue(orderData, 'paymentMethod') ||
+                                 getNestedValue(orderData, 'payment_type') ||
+                                 getNestedValue(orderData, 'paymentType');
+            
+            if (paymentMethod && paymentMethod !== 'N/A') {
+                return paymentMethod;
+            }
+            
+            // Check if there's any payment information
+            if (orderData.paymentDetails && typeof orderData.paymentDetails === 'object') {
+                return orderData.paymentDetails.method || orderData.paymentDetails.type || 'Pending';
+            }
+            
+            return 'Pending';
+        })(),
+        // Order details - map from user's structure
+        orderId: (() => {
+            const orderId = getNestedValue(orderData, 'id') || 
+                           getNestedValue(orderData, 'orderId') || 
+                           getNestedValue(orderData, 'order_id') ||
+                           getNestedValue(orderData, 'orderNumber') ||
+                           getNestedValue(orderData, 'order_number');
+            
+            if (orderId && orderId !== 'N/A') {
+                return orderId;
+            }
+            
+            return 'N/A';
+        })(),
+        customerName: (() => {
+            const nameFromOrder = getNestedValue(orderData, 'customerName') || 
+                                 getNestedValue(orderData, 'customer_name') || 
+                                 getNestedValue(orderData, 'name') ||
+                                 getNestedValue(orderData, 'customerName') ||
+                                 getNestedValue(orderData, 'userName') ||
+                                 getNestedValue(orderData, 'user_name');
+            
+            if (nameFromOrder && nameFromOrder !== 'N/A') {
+                return nameFromOrder;
+            }
+            
+            // Try to get name from address object
+            const addressObj = orderData.address || orderData.deliveryAddress;
+            if (addressObj && typeof addressObj === 'object' && addressObj.name) {
+                return addressObj.name;
+            }
+            
+            return 'N/A';
+        })(),
+        customerPhone: (() => {
+            // Try multiple possible phone number fields
+            const phoneFromOrder = getNestedValue(orderData, 'customerNumber') || 
+                                  getNestedValue(orderData, 'customerPhone') || 
+                                  getNestedValue(orderData, 'phone') || 
+                                  getNestedValue(orderData, 'phoneNumber');
+            
+            if (phoneFromOrder && phoneFromOrder !== 'N/A') {
+                return phoneFromOrder;
+            }
+            
+            // Try to get phone from address object
+            const addressObj = orderData.address || orderData.deliveryAddress;
+            if (addressObj && typeof addressObj === 'object' && addressObj.phoneNumber) {
+                return addressObj.phoneNumber;
+            }
+            
+            return 'N/A';
+        })(),
+        customerAddress: (() => {
+            // Try to get address object first
+            const addressObj = orderData.address || orderData.deliveryAddress;
+            if (addressObj && typeof addressObj === 'object') {
+                return formatAddress(addressObj);
+            }
+            // Fallback to string values
+            return getNestedValue(orderData, 'address') || 
+                   getNestedValue(orderData, 'deliveryAddress') || 
+                   'N/A';
+        })(),
+        // Date and time - format properly
+        dateTime: (() => {
+            const dateValue = getNestedValue(orderData, 'createdAt') || 
+                             getNestedValue(orderData, 'orderDate') || 
+                             getNestedValue(orderData, 'date') ||
+                             getNestedValue(orderData, 'order_date') ||
+                             getNestedValue(orderData, 'created_at') ||
+                             getNestedValue(orderData, 'timestamp');
+            
+            if (dateValue && dateValue !== 'N/A') {
+                return formatDateTime(dateValue);
+            }
+            
+            return formatDateTime(new Date());
+        })(),
+        
+        // Items count
+        itemsCount: items.length,
+        
+        // Table rows with user's structure
+        tableRows: itemsList.map((item, index) => `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${item.name}</td>
+                <td>${item.unit}</td>
+                <td>${item.quantity}</td>
+                <td>${formatCurrency(item.price)}</td>
+                <td>${formatCurrency(item.subtotal)}</td>
+            </tr>
+        `).join(''),
+        
+        // Summary calculations using user's structure
+        subTotal: formatCurrency(getNestedValue(orderData, 'subTotal', totalPrice)),
+        shippingCharges: formatCurrency(getNestedValue(orderData, 'deliveryCharges', 0)),
+        grandTotal: formatCurrency(getNestedValue(orderData, 'finalTotal', totalPrice)),
+        received: formatCurrency(0), // Default to 0 as not provided in user's structure
+        balance: formatCurrency(getNestedValue(orderData, 'finalTotal', totalPrice)) // Same as grand total if no received amount
+    };
+
+    // Debug: Log the extracted variables
+    console.log("Extracted variables:", {
+        paymentStatus: variables.paymentStatus,
+        orderId: variables.orderId,
+        customerName: variables.customerName,
+        customerPhone: variables.customerPhone,
+        customerAddress: variables.customerAddress,
+        dateTime: variables.dateTime
+    });
+
+    // Helper function to format address from user's structure
+    function formatAddress(addressObj) {
+        if (!addressObj || typeof addressObj !== 'object') {
+            return 'N/A';
+        }
+        
+        const parts = [];
+        
+        // Add house number if available
+        if (addressObj.house_number) {
+            parts.push(`House No: ${addressObj.house_number}`);
+        }
+        
+        // Add main address
+        if (addressObj.address) {
+            parts.push(addressObj.address);
+        }
+        
+        // Add landmark/area
+        if (addressObj.landmark_area) {
+            parts.push(`Near: ${addressObj.landmark_area}`);
+        }
+        
+        // Add address type
+        if (addressObj.address_type) {
+            parts.push(`Type: ${addressObj.address_type}`);
+        }
+        
+        // Add zip code
+        if (addressObj.zipCode) {
+            parts.push(`PIN: ${addressObj.zipCode}`);
+        }
+        
+        // Add phone number if not already displayed elsewhere
+        if (addressObj.phoneNumber) {
+            parts.push(`Phone: ${addressObj.phoneNumber}`);
+        }
+        
+        return parts.length > 0 ? parts.join(', ') : 'N/A';
+    }
+
+    // Create HTML template with modern styling
+    const htmlTemplate = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invoice - Promode Agro Farms</title>
+            <style>
+                body {
+      font-family: Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #222;
+    }
+    .invoice-container {
+      width: 800px;
+      margin: 24px auto;
+      /* border: 2px solid #222; */
+      background: #fff;
+      padding: 0;
+      box-sizing: border-box;
+      position: relative;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 24px 32px 0 32px;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      margin-right: 16px;
+    }
+    .company-details {
+      flex: 1;
+      text-align: center;
+    }
+    .company-name {
+      color: black;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+    .tagline {
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+    .contact {
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .whatsapp-icon {
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .dashed {
+      border-bottom: 2px dashed #222;
+      margin: 16px 32px 0 32px;
+    }
+    .invoice-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 32px 0 32px;
+    }
+    .invoice-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .payment-box {
+      border: 1.5px solid #ccc;
+      border-radius: 6px;
+      background: #f9f9f9;
+      padding: 6px 18px;
+      font-size: 15px;
+      font-weight: bold;
+      color: black;
+    }
+    .details-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 16px 32px 0 32px;
+      font-size: 14px;
+      gap: 20px;
+    }
+    .details-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .details-col:first-child {
+      position: relative;
+    }
+    .details-col:first-child::after {
+      content: '';
+      position: absolute;
+      right: -10px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, #ccc, transparent);
+      opacity: 0.6;
+    }
+    .details-label {
+      font-weight: bold;
+      min-width: 100px;
+      display: inline-block;
+      margin-right: 8px;
+    }
+    .details-value {
+      display: inline-block;
+      word-wrap: break-word;
+      max-width: 200px;
+      vertical-align: top;
+    }
+    .table-section {
+      padding: 16px 32px 0 32px;
+      position: relative;
+    }
+    .watermark {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.08;
+      font-size: 56px;
+      font-style: normal;
+      font-weight: bold;
+      color: rgb(0, 95, 65);
+      z-index: 10;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0;
+      z-index: 1;
+      position: relative;
+    }
+    th, td {
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 14px;
+    }
+    th {
+        background-color: rgb(0, 95, 65);
+        color: white;
+        font-weight: bold;
+        border: 1px solid rgb(0, 95, 65);
+    }
+    tr:nth-child(even) td {
+      background: #f3f3f3;
+    }
+    tr:nth-child(odd) td {
+      background: #fff;
+    }
+    .summary-section {
+      padding: 16px 32px 0 32px;
+      font-size: 14px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .dashed-summary {
+      border-bottom: 1.5px dashed #222;
+      margin: 8px 0;
+    }
+    .footer {
+      padding: 24px 32px 16px 32px;
+      text-align: center;
+      font-size: 14px;
+      color: black;
+      font-weight: bold;
+      position: relative;
+    }
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #222;
+      font-weight: normal;
+      margin-top: 8px;
+    }
+    .footer-icon {
+      width: 14px;
+      height: 14px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .thank-you-dash {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: black;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .dash {
+      font-size: 13px;
+      color: #222;
+      font-weight: normal;
+      margin: 0 8px;
+    }
+    .thank-you-text {
+      font-size: 15px;
+      color: black;
+      font-weight: bold;
+      margin: 0 8px;
+    }
+            </style>
+        </head>
+          <body>
+  <div class="invoice-container">
+    <div class="header">
+      <div class="company-details">
+        <div style="display: flex; gap: 5px; justify-content: center;">
+             <img src="data:image/png;base64,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" class="logo" alt="Logo" />
+
+<div>
+        <div class="company-name">PROMODE AGRO FARMS</div>
+        <div class="tagline">Deliver Season's Best</div>
+        <div class="contact">
+          +918887939587
+          <!-- <img src="/path/to/whatsapp.png" class="whatsapp-icon" alt="WhatsApp" /> -->
+        </div>
+        </div>
+    </div>
+      </div>
+    </div>
+    <div class="dashed"></div>
+    <div class="invoice-title-row">
+      <div class="invoice-title">Invoice</div>
+    
+    </div>
+    <div class="details-row">
+      <div class="details-col">
+        <div><span class="details-label">Order ID:</span> <span class="details-value" style="font-weight: bold;">${variables.orderId}</span></div>
+        <div><span class="details-label">Customer:</span> <span class="details-value">${variables.customerName}</span></div>
+        <div><span class="details-label">Phone:</span> <span class="details-value">${variables.customerPhone}</span></div>
+        <div><span class="details-label">Address:</span> <span class="details-value">${variables.customerAddress}</span></div>
+        <div><span class="details-label">Date & Time:</span> <span class="details-value">${variables.dateTime}</span></div>
+      </div>
+      <div class="details-col">
+        <div><span class="details-label">Biller Name:</span> <span class="details-value" style="margin:5px">PROMODE AGRO FARMS</span></div>
+        <div><span class="details-label">Billing Address:</span> <span class="details-value">Dargah khaleej khan, Kismatpur,
+          Hyderabad, Telangana 500028</span></div>
+        <div><span class="details-label" >Contact No:</span> <span class="details-value" style="margin:6px">9701610033</span></div>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: right;"><span class="details-label">Items: ${variables.itemsCount}</span></div>
+
+    <div class="table-section">
+      <div class="watermark">PROMODE AGRO FARMS</div>
+      <table>
+        <thead>
+          <tr>
+            <th>S.No</th>
+            <th>Product Name</th>
+            <th>Unit</th>
+            <th>Quantity</th>
+            <th>Rate</th>
+            <th>Total Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${variables.tableRows}
+        </tbody>
+      </table>
+    </div>
+    <div class="summary-section">
+      <div class="summary-row"><span><b>Sub Total:</b></span> <span>${variables.subTotal}</span></div>
+      <div class="summary-row"><span><b>Shipping Charges:</b></span> <span>${variables.shippingCharges}</span></div>
+      <div class="dashed-summary"></div>
+      <div class="summary-row"><span><b>Grand Total:</b></span> <span><b>${variables.grandTotal}</b></span></div>
+      <div class="dashed-summary"></div>
+      <div class="summary-row"><span><b>Received:</b></span> <span>${variables.received}</span></div>
+      <div class="summary-row"><span><b>Balance:</b></span> <span>${variables.balance}</span></div>
+    </div>
+    <div class="footer">
+      <div class="thank-you-dash">
+        <span class="dash">&lt;------------------------------------------------------------------</span>
+        <span class="thank-you-text">Thank You</span>
+        <span class="dash">---------------------------------------------------------------------&gt;</span>
+      </div>
+      <div class="footer-row">
+        <span>
+            <!-- <img src="file:///C:/Users/44757/OneDrive/Desktop/PTR-BE/promodeagro-ecommerce-api/image.png" class="footer-icon" alt="Internet" /> -->
+            www.promodeagro.com</span>
+        <span>
+            <!-- <img src="file:///C:/Users/44757/OneDrive/Desktop/PTR-BE/promodeagro-ecommerce-api/image.png" class="footer-icon" alt="Email" /> -->
+            support@promodeagro.com</span>
+      </div>
+    </div>
+  </div>
+</body>
+        </html>
+    `;
+
+    try {
+        // Launch Puppeteer browser
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        
+        const page = await browser.newPage();
+        
+        // Set content and wait for it to load
+        await page.setContent(htmlTemplate, { waitUntil: 'networkidle0' });
+        
+        // Generate PDF with high quality settings
+        const pdfBuffer = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: {
+                top: '20px',
+                right: '20px',
+                bottom: '20px',
+                left: '20px'
+            },
+            preferCSSPageSize: true
+        });
+        
+        // Close browser
+        await browser.close();
+        
+        return pdfBuffer;
+        
+    } catch (error) {
+        console.error('Error generating PDF with Puppeteer:', error);
+        throw new Error('Failed to generate PDF');
+    }
+}
+
+async function sendDocumentMessage(phoneNumber, documentLink, documentName) {
+    try {
+        // Use the template approach that's already working in your system
+        const data = JSON.stringify({
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phoneNumber,
+            "type": "template",
+            "template": {
+                "name": "sendpdf",
+                "language": {
+                    "code": "en"
+                },
+                "components": [
+                    {
+                        "type": "header",
+                        "parameters": [
+                            {
+                                "type": "document",
+                                "document": {
+                                    "link": documentLink,
+                                    "filename": documentName + ".pdf"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        const config = {
+            method: 'post',
+            maxBodyLength: Infinity,
+            url: 'https://graph.facebook.com/v19.0/208582795666783/messages',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${whatsappToken}`
+            },
+            data: data
+        };
+
+        const response = await axios.request(config);
+        console.log("WhatsApp API Response:", response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error sending document via WhatsApp:', error);
+        throw error;
+    }
+}
+
+async function sendTextMessage(phoneNumber, message) {
+    try {
+        const data = JSON.stringify({
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phoneNumber,
+            "type": "text",
+            "text": {
+                "body": message
+            }
+        });
+
+        const config = {
+            method: 'post',
+            maxBodyLength: Infinity,
+            url: 'https://graph.facebook.com/v19.0/208582795666783/messages',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${whatsappToken}`
+            },
+            data: data
+        };
+
+        const response = await axios.request(config);
+        console.log("WhatsApp Text Response:", response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error sending text via WhatsApp:', error);
+        throw error;
+    }
+}
+
+async function generateAndSendBill(items, orderData, phoneNumber) {
+    try {
+        console.log("Generating pixel-perfect PDF with Puppeteer...");
+        
+        // Validate input parameters with proper object structure checking
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new Error('Items must be a non-empty array');
+        }
+
+        // Validate each item in the array based on user's structure
+        items.forEach((item, index) => {
+            if (!item || typeof item !== 'object') {
+                throw new Error(`Item at index ${index} must be a valid object`);
+            }
+            
+            // Check for required properties with fallbacks for user's structure
+            if (!item.price && item.price !== 0) {
+                console.warn(`Item at index ${index} missing price, defaulting to 0`);
+                item.price = 0;
+            }
+            
+            if (!item.quantity && item.quantity !== 0) {
+                console.warn(`Item at index ${index} missing quantity, defaulting to 1`);
+                item.quantity = 1;
+            }
+            
+            if (!item.productName && !item.name) {
+                console.warn(`Item at index ${index} missing product name, defaulting to 'Unknown Product'`);
+                item.productName = 'Unknown Product';
+            }
+        });
+
+        // Validate orderData object
+        if (!orderData || typeof orderData !== 'object') {
+            console.warn('orderData is not a valid object, using empty object');
+            orderData = {};
+        }
+
+        // Validate phone number - use customerNumber from user's structure
+        const phoneToUse = phoneNumber || orderData.customerNumber || orderData.address?.phoneNumber;
+        if (!phoneToUse || typeof phoneToUse !== 'string' || phoneToUse.trim() === '') {
+            throw new Error('Phone number must be a non-empty string');
+        }
+
+        // Sanitize phone number (remove spaces, dashes, etc.)
+        const sanitizedPhoneNumber = phoneToUse.replace(/[\s\-\(\)]/g, '');
+        
+        // Generate PDF using Puppeteer
+        const pdfBuffer = await generateBillImage(items, orderData);
+        
+        console.log("PDF generated successfully, uploading to S3...");
+        
+        // Create a unique filename with proper validation using user's structure
+        const orderId = orderData.id || Date.now();
+        const fileName = `invoice_${orderId}_${Date.now()}`;
+        
+        // Upload the PDF file to S3
+        const params = {
+            Bucket: 'ecomdmsservice',
+            Key: 'bills/' + fileName + '.pdf',
+            Body: pdfBuffer,
+            ContentType: 'application/pdf'
+        };
+
+        // Upload the file to S3
+        const uploadResult = await s3.upload(params).promise();
+        const publicUrl = uploadResult.Location;
+        
+        console.log("PDF uploaded to S3:", publicUrl);
+        console.log("Sending bill via WhatsApp...");
+
+        // Try template-based document sending first
+        try {
+            console.log("Trying template-based document sending...");
+            const whatsappResponse = await sendDocumentMessage(sanitizedPhoneNumber, publicUrl, fileName);
+            console.log("Template document sent successfully:", whatsappResponse);
+            
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    message: 'PDF generated and sent via template successfully',
+                    publicUrl: publicUrl,
+                    whatsappResponse: whatsappResponse
+                })
+            };
+        } catch (templateError) {
+            console.error("Template document sending failed:", templateError);
+            
+            // Fallback to simple text message with PDF link
+            try {
+                console.log("Falling back to text message with PDF link...");
+                const totalPrice = items.reduce((sum, item) => {
+                    const price = parseFloat(item.price) || 0;
+                    const quantity = parseInt(item.quantity) || 0;
+                    return sum + (price * quantity);
+                }, 0);
+                
+                // Use user's structure for customer name and order ID
+                const customerName = orderData.customerName || orderData.address?.name || 'Customer';
+                const orderIdDisplay = orderData.id || 'N/A';
+                
+                const textMessage = `🌾 *Promode Agro Farms - Order Confirmation*\n\n📋 *Order ID:* ${orderIdDisplay}\n👤 *Customer:* ${customerName}\n💰 *Total Amount:* ₹${totalPrice.toFixed(2)}\n\nYour invoice has been generated! 📄\n\nDownload your PDF invoice here:\n${publicUrl}`;
+                
+                const textResponse = await sendTextMessage(sanitizedPhoneNumber, textMessage);
+                console.log("Text message with PDF link sent successfully:", textResponse);
+                
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify({
+                        message: 'PDF generated, text message with PDF link sent',
+                        publicUrl: publicUrl,
+                        whatsappResponse: textResponse
+                    })
+                };
+            } catch (textError) {
+                console.error("Text message sending also failed:", textError);
+                
+                // Final fallback: Just return success with PDF URL
+                return {
+                    statusCode: 200,
+                    body: JSON.stringify({
+                        message: 'PDF generated successfully, WhatsApp sending failed',
+                        publicUrl: publicUrl,
+                        error: 'WhatsApp sending failed but PDF is available'
+                    })
+                };
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error in generateAndSendBill:', error);
+        throw new Error('Failed to generate and send bill: ' + error.message);
+    }
+}
+
+// Lambda handler function
+exports.handler = async (event) => {
+    try {
+        console.log('Event received:', JSON.stringify(event, null, 2));
+        
+        // Parse the request body with error handling
+        let body;
+        try {
+            body = JSON.parse(event.body || '{}');
+        } catch (parseError) {
+            return {
+                statusCode: 400,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                },
+                body: JSON.stringify({
+                    success: false,
+                    error: 'Invalid JSON in request body'
+                })
+            };
+        }
+        
+        const { items, orderData, phoneNumber } = body;
+        
+        // Comprehensive validation with detailed error messages
+        const validationErrors = [];
+        
+        // Validate items array
+        if (!items) {
+            validationErrors.push('Items array is required');
+        } else if (!Array.isArray(items)) {
+            validationErrors.push('Items must be an array');
+        } else if (items.length === 0) {
+            validationErrors.push('Items array cannot be empty');
+        } else {
+            // Validate each item in the array
+            items.forEach((item, index) => {
+                if (!item || typeof item !== 'object') {
+                    validationErrors.push(`Item at index ${index} must be a valid object`);
+                } else {
+                    // Check for required properties
+                    if (item.price === undefined || item.price === null) {
+                        validationErrors.push(`Item at index ${index} missing price property`);
+                    }
+                    if (item.quantity === undefined || item.quantity === null) {
+                        validationErrors.push(`Item at index ${index} missing quantity property`);
+                    }
+                    if (!item.productName && !item.name) {
+                        validationErrors.push(`Item at index ${index} missing product name (productName or name property)`);
+                    }
+                }
+            });
+        }
+        
+        // Validate phone number
+        if (!phoneNumber) {
+            validationErrors.push('Phone number is required');
+        } else if (typeof phoneNumber !== 'string') {
+            validationErrors.push('Phone number must be a string');
+        } else if (phoneNumber.trim() === '') {
+            validationErrors.push('Phone number cannot be empty');
+        } else if (!/^[\d\s\-\(\)\+]+$/.test(phoneNumber)) {
+            validationErrors.push('Phone number contains invalid characters');
+        }
+        
+        // Validate orderData (optional but if provided, should be an object)
+        if (orderData !== undefined && orderData !== null && typeof orderData !== 'object') {
+            validationErrors.push('orderData must be an object if provided');
+        }
+        
+        // If there are validation errors, return them
+        if (validationErrors.length > 0) {
+            return {
+                statusCode: 400,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                },
+                body: JSON.stringify({
+                    success: false,
+                    error: 'Validation failed',
+                    details: validationErrors
+                })
+            };
+        }
+        
+        // Log validated data for debugging
+        console.log('Validated input data:', {
+            itemsCount: items.length,
+            orderDataKeys: orderData ? Object.keys(orderData) : [],
+            phoneNumber: phoneNumber
+        });
+        
+        // Call the main function
+        const result = await generateAndSendBill(items, orderData || {}, phoneNumber);
+        
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            body: JSON.stringify({
+                success: true,
+                message: 'PDF generated and sent successfully',
+                data: result
+            })
+        };
+        
+    } catch (error) {
+        console.error('Lambda handler error:', error);
+        
+        return {
+            statusCode: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            body: JSON.stringify({
+                success: false,
+                error: error.message || 'Internal server error'
+            })
+        };
+    }
+};
+
+module.exports = { 
+    generateBillImage, 
+    generateAndSendBill,
+    sendDocumentMessage,
+    sendTextMessage 
+}; 
