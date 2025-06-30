@@ -16,8 +16,7 @@ const { v4: uuidv4 } = require('uuid');
 const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 const lambda = new LambdaClient({});
 const { initiatePayment } = require('../payment/phonePayOrder');
-const { generateBillImage } = require('../whatsaapNotifications/generateBillImage');
-const { shareBillOnWhatsaap } = require('../whatsaapNotifications/shareBillOnWhatsaap');
+const { generateAndSendBill } = require('../whatsaapNotifications/generateAndSendBill');
 const { Console } = require('console');
 // Create DynamoDB client with options to remove undefined values
 const dynamoDB = new DynamoDBClient({
@@ -328,26 +327,52 @@ module.exports.handler = async (event) => {
     if (paymentDetails.method === "cash") {
       paymentDetails.method = "COD"
       paymentDetails.status = "PENDING"
-      console.log("billllsss")
+      console.log("Generating pixel-perfect PDF bill for COD order...")
 
-      // const bill = await generateBillImage(orderItems)
-      // console.log(bill)
-      // console.log("billllsss")
+      // Prepare order data for the PDF
+      const orderData = {
+        id: orderId,
+        customerName: addressDetails.name,
+        phoneNumber: addressDetails.phoneNumber,
+        address: `${addressDetails.address}, ${addressDetails.landmark_area}, ${addressDetails.zipCode}`
+      };
 
-      // const response = await shareBillOnWhatsaap(bill, addressDetails.name, addressDetails.phoneNumber)
+      // Generate PDF and send via WhatsApp
+      try {
+        const billResponse = await generateAndSendBill(orderItems, orderData, addressDetails.phoneNumber);
+        console.log("Bill generation completed:", billResponse);
+      } catch (billError) {
+        console.error("Bill generation failed:", billError);
+        // Don't throw error - continue with order creation
+      }
 
     } else {
-      console.log("testing")
+      console.log("Generating pixel-perfect PDF bill for online payment order...")
 
       const payment = await initiatePayment(orderId,finalTotal);
       paymentDetails.status = "PENDING"
       paymentDetails.method = "Prepaid"
       paymentDetails.paymentLink = payment;
+
+      // Prepare order data for the PDF
+      const orderData = {
+        id: orderId,
+        customerName: addressDetails.name,
+        phoneNumber: addressDetails.phoneNumber,
+        address: `${addressDetails.address}, ${addressDetails.landmark_area}, ${addressDetails.zipCode}`
+      };
+
+      // Generate PDF and send via WhatsApp
+      try {
+        const billResponse = await generateAndSendBill(orderItems, orderData, addressDetails.phoneNumber);
+        console.log("Bill generation completed for online payment:", billResponse);
+      } catch (billError) {
+        console.error("Bill generation failed for online payment:", billError);
+        // Don't throw error - continue with order creation
+      }
     }
 
 
-
-    //  await sendBill(addressDetails.phoneNumber, process.env.FACEBOOK_ACCESS_TOKEN, orderItems)
 
     console.log(paymentDetails);
     console.log("USER DETAILS : ", userDetails);

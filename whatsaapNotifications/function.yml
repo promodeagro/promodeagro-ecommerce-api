@@ -1,0 +1,29 @@
+service: whatsapp-bill-generator
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    FACEBOOK_ACCESS_TOKEN: ${env:FACEBOOK_ACCESS_TOKEN}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+        - s3:DeleteObject
+      Resource: 
+        - "arn:aws:s3:::ecomdmsservice/bills/*"
+
+functions:
+  generateAndSendBill:
+    handler: generateAndSendBill.handler
+    events:
+      - http:
+          path: /generate-bill
+          method: post
+          cors: true
+    timeout: 60
+    memorySize: 1024
+    environment:
+      FACEBOOK_ACCESS_TOKEN: ${env:FACEBOOK_ACCESS_TOKEN} 
