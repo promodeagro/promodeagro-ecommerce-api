@@ -37,25 +37,13 @@ provider:
     Inventory_TABLE_NAME: ${env:Inventory_TABLE_NAME, 'inventory-local'}
     Catalog_TABLE_NAME: ${env:Catalog_TABLE_NAME, 'catalog-local'}
     DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME, 'users-local'}
-    JWT_SECRET: ${env:JWT_SECRET, 'promode-local-jwt-secret-dev-only'}
+    JWT_SECRET: ${env:JWT_SECRET, 'promode-local-jwt-secret'}
     CART_TABLE: ${env:CART_TABLE, 'cart-local'}
     WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist-local'}
     AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID, 'test'}
     AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY, 'test'}
 
 custom:
-  warmup:
-    default:
-      enabled: false
-      events:
-        - schedule: rate(5 minutes)
-  
-  # customDomain:
-  #   domainName: api.b2c.promodeagro.com
-  #   basePath: project1
-  #   stage: ${self:provider.stage}
-  #   createRoute53Record: true
-
   serverless-offline:
     httpPort: 4000
     lambdaPort: 3001
@@ -89,10 +77,6 @@ functions:
   
   # - ${file(webhooks/function.yml)}
 plugins:
-  - serverless-plugin-warmup
-
-  # - serverless-domain-manager
-
   - serverless-offline
 #   - serverless-esbuild
 

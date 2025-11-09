@@ -121,8 +121,22 @@
 const axios = require('axios');
 require('dotenv').config();
 const AWS = require('aws-sdk');
-const s3 = new AWS.S3();
-const dynamoDB = new AWS.DynamoDB.DocumentClient();
+
+// Configure AWS SDK based on environment
+const s3Config = {};
+const dynamoDBConfig = {};
+
+if (process.env.DYNAMODB_ENDPOINT) {
+  s3Config.endpoint = process.env.DYNAMODB_ENDPOINT;
+  s3Config.s3ForcePathStyle = true;
+  dynamoDBConfig.endpoint = process.env.DYNAMODB_ENDPOINT;
+}
+
+s3Config.region = process.env.AWS_REGION || 'ap-south-1';
+dynamoDBConfig.region = process.env.AWS_REGION || 'ap-south-1';
+
+const s3 = new AWS.S3(s3Config);
+const dynamoDB = new AWS.DynamoDB.DocumentClient(dynamoDBConfig);
 
 const FACEBOOK_GRAPH_API_URL = process.env.FACEBOOK_GRAPH_API_URL;
 const CATALOG_ID = process.env.CATALOG_ID;
@@ -133,6 +147,12 @@ function generateUniqueId() {
     return Math.floor(Math.random() * Date.now()).toString();
 }
 async function validateCategory(category, subcategory) {
+    // For local development, skip validation if category table doesn't exist
+    if (!categoryTable || process.env.NODE_ENV === 'development') {
+        console.log('Skipping category validation for local development');
+        return true;
+    }
+    
     // Check if category and subcategory exist in DynamoDB using GSI
     const params = {
         TableName: categoryTable, // Replace with your actual DynamoDB table name for categories
@@ -154,6 +174,11 @@ async function validateCategory(category, subcategory) {
         }
     } catch (err) {
         console.error('Error validating category:', err);
+        // For local dev, don't throw - just log and continue
+        if (process.env.NODE_ENV === 'development') {
+            console.log('Category validation failed in local development, allowing creation');
+            return true;
+        }
         throw err;
     }
 }
@@ -214,24 +239,37 @@ module.exports.handler = async (event) => {
 
         const tableName = process.env.PRODUCTS_TABLE;
 
-        const uploadPromises = productData.images.map(async (image) => {
-            const s3params = {
-                Bucket: 'ecomdmsservice',
-                Key: `${productData.name}-${generateUniqueId()}`,
-                Body: Buffer.from(image, 'base64'),
-                ContentType: productData.imageType
-            };
+        // For local development, use mock image URLs
+        const isLocal = process.env.NODE_ENV === 'development' || process.env.DYNAMODB_ENDPOINT === 'http://localhost:4566';
+        
+        let imageUrls;
+        if (isLocal) {
+            // Generate mock image URLs for local testing
+            imageUrls = productData.images.map((_, index) => 
+                `http://localhost:4000/mock-image-${productData.name}-${index}-${generateUniqueId()}.jpg`
+            );
+            console.log('Using mock image URLs for local development');
+        } else {
+            // Upload to real S3 in production
+            const uploadPromises = productData.images.map(async (image) => {
+                const s3params = {
+                    Bucket: 'ecomdmsservice',
+                    Key: `${productData.name}-${generateUniqueId()}`,
+                    Body: Buffer.from(image, 'base64'),
+                    ContentType: productData.imageType
+                };
 
-            try {
-                const uploadResult = await s3.upload(s3params).promise();
-                return uploadResult.Location;
-            } catch (error) {
-                console.error('Error uploading image to S3:', error);
-                throw error;
-            }
-        });
+                try {
+                    const uploadResult = await s3.upload(s3params).promise();
+                    return uploadResult.Location;
+                } catch (error) {
+                    console.error('Error uploading image to S3:', error);
+                    throw error;
+                }
+            });
 
-        const imageUrls = await Promise.all(uploadPromises);
+            imageUrls = await Promise.all(uploadPromises);
+        }
 
         const savings = (productData.savingsPercentage / 100) * productData.mrp;
         const price = productData.mrp - savings;

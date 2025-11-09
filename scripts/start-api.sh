@@ -59,6 +59,9 @@ if [ -f ".env.local" ]; then
   source .env.local
   set +a
   echo -e "${GREEN}✓ Environment variables loaded${NC}"
+  echo -e "${GREEN}  - PRODUCTS_TABLE: $PRODUCTS_TABLE${NC}"
+  echo -e "${GREEN}  - AWS_REGION: $AWS_REGION${NC}"
+  echo -e "${GREEN}  - DYNAMODB_ENDPOINT: $DYNAMODB_ENDPOINT${NC}"
 else
   echo -e "${YELLOW}⚠ Using default environment variables${NC}"
 fi
@@ -70,19 +73,22 @@ echo -e "${GREEN}Starting Serverless Offline...${NC}"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 echo -e "${BLUE}Configuration:${NC}"
-echo "  LocalStack Endpoint:     http://localhost:4566"
+echo "  LocalStack Endpoint:     $DYNAMODB_ENDPOINT"
 echo "  DynamoDB Admin:          http://localhost:8001"
 echo "  API Server:              http://localhost:4000"
 echo ""
 echo -e "${BLUE}Endpoints will be available at:${NC}"
 echo "  http://localhost:4000/product"
-echo "  http://localhost:4000/orders"
-echo "  http://localhost:4000/auth/signin"
+echo "  http://localhost:4000/order"
+echo "  http://localhost:4000/cart/getItems"
 echo "  ... and more"
 echo ""
 echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
-# Start serverless offline
-npx serverless offline start --stage local
+# Start local development server with environment variables passed
+if [ -f ".env.local" ]; then
+  export $(grep -v '^#' .env.local | grep -v '^$' | xargs)
+fi
+node local-dev-server.js
 

@@ -1,6 +1,5 @@
 const { DynamoDBClient, ScanCommand, QueryCommand } = require("@aws-sdk/client-dynamodb");
 const { unmarshall } = require("@aws-sdk/util-dynamodb");
-require("dotenv").config({ path: '.env.local' });
 
 const dynamoDBConfig = {
   region: process.env.AWS_REGION || 'ap-south-1'
