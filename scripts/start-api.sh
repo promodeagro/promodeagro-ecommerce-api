@@ -52,6 +52,18 @@ else
 fi
 echo ""
 
+# Load environment variables from .env.local
+echo -e "${BLUE}4️⃣  Loading environment variables...${NC}"
+if [ -f ".env.local" ]; then
+  set -a
+  source .env.local
+  set +a
+  echo -e "${GREEN}✓ Environment variables loaded${NC}"
+else
+  echo -e "${YELLOW}⚠ Using default environment variables${NC}"
+fi
+echo ""
+
 # Display startup info
 echo "╔════════════════════════════════════════════════════════════╗"
 echo -e "${GREEN}Starting Serverless Offline...${NC}"
@@ -72,5 +84,5 @@ echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
 # Start serverless offline
-npx serverless offline start
+npx serverless offline start --stage local
 
