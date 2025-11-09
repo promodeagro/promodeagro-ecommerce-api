@@ -1,105 +1,164 @@
-# LocalStack Setup Documentation
+# LocalStack Setup - ProMode Agro eCommerce API
 
-This directory contains all documentation and configuration for running the ProMode Agro eCommerce API locally using **LocalStack** and **DynamoDB**.
+Welcome to the LocalStack setup guide for the ProMode Agro eCommerce API! This directory contains everything you need to run the API locally using LocalStack and DynamoDB.
 
 ---
 
-## 📖 Quick Navigation
+## 📋 Quick Navigation
 
-### **I want to get running immediately** (3 minutes)
+### **Just get it running?** (3 minutes)
 → **Read: [START_HERE.txt](./START_HERE.txt)**
 
-Just the essentials - 3 commands to run and you're done.
-
-### **I want to set it up step-by-step** (5-10 minutes)
+### **Want step-by-step setup?** (5-10 minutes)
 → **Read: [QUICKSTART_LOCALSTACK.md](./QUICKSTART_LOCALSTACK.md)**
 
-Complete walkthrough with explanations of what each step does.
-
-### **I need the full guide** (30-45 minutes)
+### **Need full details?** (30-45 minutes)
 → **Read: [LOCAL_SETUP_LOCALSTACK.md](./LOCAL_SETUP_LOCALSTACK.md)**
 
-Comprehensive 500+ line guide covering everything in detail.
-
-### **I need a command reference** (5 minutes)
+### **Need command reference?** (5 minutes)
 → **Read: [LOCALSTACK_REFERENCE.md](./LOCALSTACK_REFERENCE.md)**
-
-Quick lookup for commands while you're developing.
-
----
-
-## 📁 Files in This Directory
-
-### Documentation
-
-| File | Purpose | Read Time |
-|------|---------|-----------|
-| **START_HERE.txt** | Quick start guide | 3 min |
-| **QUICKSTART_LOCALSTACK.md** | Setup walkthrough | 5-10 min |
-| **LOCAL_SETUP_LOCALSTACK.md** | Full detailed guide | 30-45 min |
-| **LOCALSTACK_REFERENCE.md** | Command reference | 5 min |
-| **LOCALSTACK_SETUP_SUMMARY.md** | Overview | 10-15 min |
-| **LOCALSTACK_COMPLETE_SETUP.txt** | Complete reference | 15-20 min |
-| **LOCALSTACK_INDEX.md** | Documentation index | 2 min |
-
-### Configuration
-
-| File | Purpose |
-|------|---------|
-| **docker-compose-localstack.yml** | Docker services configuration |
-| **localstack-init.sh** | Auto-creates DynamoDB tables on startup |
 
 ---
 
 ## 🚀 Three-Step Quick Start
 
-From the **project root directory**:
+From the project root directory:
 
 ```bash
-# Terminal 1
+# Terminal 1: Start LocalStack
 bash scripts/start-localstack.sh
 
-# Terminal 2
+# Terminal 2: Start API (after LocalStack is ready)
 bash scripts/start-api.sh
 
-# Terminal 3
+# Terminal 3: Test API (after API is running)
 bash scripts/test-api.sh
 ```
 
 ---
 
-## 🔗 Important Notes
+## 📁 Files in This Directory
 
-- **All helper scripts are in**: `/scripts/` directory
-- **Docker compose file**: Use from this directory
-- **All documentation**: Available in this directory
-- **Run commands from**: Project root directory
+### Documentation Files
+- `README.md` - This file
+- `START_HERE.txt` - Quick start guide (3 min)
+- `QUICKSTART_LOCALSTACK.md` - Setup walkthrough (5-10 min)
+- `LOCAL_SETUP_LOCALSTACK.md` - Complete guide (30-45 min)
+- `LOCALSTACK_REFERENCE.md` - Command reference (5 min)
+- `LOCALSTACK_SETUP_SUMMARY.md` - Overview
+- `LOCALSTACK_COMPLETE_SETUP.txt` - Complete reference
+- `LOCALSTACK_INDEX.md` - Documentation index
 
----
-
-## 📞 Questions?
-
-| Question | Answer |
-|----------|--------|
-| How do I start? | Read `START_HERE.txt` |
-| How do I set it up? | Read `QUICKSTART_LOCALSTACK.md` |
-| Need full details? | Read `LOCAL_SETUP_LOCALSTACK.md` |
-| What's the command? | Check `LOCALSTACK_REFERENCE.md` |
-| Which doc to read? | See `LOCALSTACK_INDEX.md` |
+### Configuration Files
+- `docker-compose-localstack.yml` - Docker services configuration
+- `localstack-init.sh` - Auto-creates DynamoDB tables
 
 ---
 
-## 🎯 What You Get
+## 🌐 Access Points
 
-- ✅ LocalStack (AWS services emulation)
-- ✅ DynamoDB (local database)
-- ✅ DynamoDB Admin (database browser at http://localhost:8001)
-- ✅ API Server (Serverless Offline at http://localhost:4000)
-- ✅ 6 pre-created DynamoDB tables
-- ✅ 50+ REST API endpoints
-- ✅ Full documentation
+Once running:
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **API Server** | http://localhost:4000 | REST API endpoints |
+| **DynamoDB Admin** | http://localhost:8001 | Database browser |
+| **LocalStack** | http://localhost:4566 | AWS services |
 
 ---
 
-**Start with: [START_HERE.txt](./START_HERE.txt)**
+## 📊 DynamoDB Tables
+
+Automatically created:
+
+- `products-local` - Product catalog
+- `orders-local` - Orders
+- `customers-local` - Customers  
+- `inventory-local` - Inventory
+- `catalog-local` - Catalog
+- `users-local` - Users
+
+---
+
+## ✅ What You Get
+
+✓ **LocalStack** - AWS services emulation  
+✓ **DynamoDB** - Local database  
+✓ **DynamoDB Admin** - Visual database browser  
+✓ **Serverless Offline** - API server on port 4000  
+✓ **50+ API Endpoints** - Full eCommerce functionality  
+✓ **Auto-Init Tables** - Tables created on startup
+
+---
+
+## 🆘 Troubleshooting
+
+### LocalStack won't start
+```bash
+# Check if Docker is running
+docker ps
+
+# View LocalStack logs
+docker logs promode-localstack
+
+# Force clean and restart
+docker-compose -f docker-compose-localstack.yml down -v
+docker-compose -f docker-compose-localstack.yml up -d
+```
+
+### API won't connect to DynamoDB
+```bash
+# Check if LocalStack is healthy
+curl http://localhost:4566/_localstack/health
+
+# Check environment variables
+cat .env.local | grep DYNAMODB_ENDPOINT
+```
+
+### Port already in use
+```bash
+# Find process
+lsof -i :4000   # API
+lsof -i :4566   # LocalStack
+lsof -i :8001   # DynamoDB Admin
+
+# Kill process
+kill -9 <PID>
+```
+
+---
+
+## 📝 Common Tasks
+
+### List DynamoDB Tables
+```bash
+aws dynamodb list-tables \
+  --endpoint-url http://localhost:4566 \
+  --region ap-south-1
+```
+
+### Test API
+```bash
+curl http://localhost:4000/product
+```
+
+### Browse Data
+Open http://localhost:8001 in browser
+
+### Stop Everything
+```bash
+bash scripts/stop-localstack.sh
+```
+
+---
+
+## 🎯 Next Steps
+
+1. Choose a starting doc above
+2. Run the 3 commands
+3. Start developing!
+
+---
+
+**Start here: [START_HERE.txt](./START_HERE.txt)**
 

@@ -72,5 +72,5 @@ echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
 # Start serverless offline
-serverless offline start
+npx serverless offline start
 

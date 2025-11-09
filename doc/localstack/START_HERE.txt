@@ -82,7 +82,6 @@ WHAT YOU NOW HAVE
   - DynamoDB (database)
   - S3 (storage)
   - Secrets Manager (config)
-  - Lambda emulation
 
 ✓ API Server (Serverless Offline)
   - 50+ REST endpoints
@@ -164,7 +163,7 @@ Port already in use?
 
 LocalStack won't start?
   $ docker ps
-  $ docker-compose -f docker-compose-localstack.yml logs localstack
+  $ docker-compose -f doc/localstack/docker-compose-localstack.yml logs localstack
 
 API not responding?
   $ curl http://localhost:4000/product
@@ -174,7 +173,7 @@ DynamoDB Admin not working?
   $ curl http://localhost:8001
 
 Everything broken?
-  $ docker-compose -f docker-compose-localstack.yml down -v
+  $ docker-compose -f doc/localstack/docker-compose-localstack.yml down -v
   $ bash scripts/start-localstack.sh
 
 
@@ -200,17 +199,14 @@ DOCUMENTATION
    ├─ Test commands
    └─ 5 min reference
 
-📖 LOCALSTACK_SETUP_SUMMARY.md
-   ├─ Overview of what's been created
-   ├─ File descriptions
-   ├─ Verification checklist
-   └─ 10-15 min read
-
 📖 README.md
-   ├─ Full project overview
-   ├─ Architecture details
-   ├─ All modules documented
-   └─ 20-30 min read
+   ├─ Overview and navigation
+   ├─ File descriptions
+   └─ Quick links
+
+📖 LOCALSTACK_INDEX.md
+   ├─ Documentation index
+   └─ Find the right doc
 
 
 NEXT STEPS
@@ -246,7 +242,7 @@ Everything is configured. Just run the three commands:
 
 Then start developing! 🚀
 
-For detailed help, see QUICKSTART_LOCALSTACK.md or LOCAL_SETUP_LOCALSTACK.md
+For detailed help, see LOCAL_SETUP_LOCALSTACK.md or QUICKSTART_LOCALSTACK.md
 
 
 ═════════════════════════════════════════════════════════════════════════════
