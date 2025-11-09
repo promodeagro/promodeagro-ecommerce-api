@@ -90,5 +90,7 @@ echo ""
 if [ -f ".env.local" ]; then
   export $(grep -v '^#' .env.local | grep -v '^$' | xargs)
 fi
+# Suppress AWS SDK v2 deprecation warning
+export NODE_OPTIONS="--no-warnings=ExperimentalWarning --no-warnings"
 node local-dev-server.js
 

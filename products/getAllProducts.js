@@ -33,8 +33,8 @@ module.exports.handler = async (event) => {
 
     if (!productsData.Items || productsData.Items.length === 0) {
       return {
-        statusCode: 404,
-        body: JSON.stringify({ message: "No products found" }),
+        statusCode: 200,
+        body: JSON.stringify({ message: "No products found", products: [] }),
       };
     }
 

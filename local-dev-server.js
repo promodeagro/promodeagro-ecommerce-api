@@ -2,13 +2,14 @@
 
 /**
  * Local Development Server for ProMode Agro eCommerce API
- * This server simulates the Lambda functions locally without needing Serverless Offline
+ * This server simulates Lambda functions locally
  */
 
 require('dotenv').config({ path: '.env.local' });
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,7 +21,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -34,129 +35,119 @@ app.use((req, res, next) => {
   next();
 });
 
-// Load all function handlers from files
-const functionFiles = [
-  'products/getAllProducts.js',
-  'products/createProduct.js',
-  'products/updateProduct.js',
-  'products/delete.js',
-  'products/getById.js',
-];
-
-const handlers = {};
-
-// Dynamically import and setup routes
-functionFiles.forEach(file => {
-  try {
-    const handler = require(path.join(__dirname, file));
-    if (handler && handler.handler) {
-      handlers[file] = handler.handler;
-      console.log(`✓ Loaded handler: ${file}`);
-    }
-  } catch (err) {
-    console.log(`⚠ Could not load: ${file}`);
-  }
-});
-
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Default route listing
+// Default route
 app.get('/', (req, res) => {
   res.json({
     message: 'ProMode Agro eCommerce API - Local Development Server',
-    endpoints: [
-      'GET  /health',
-      'GET  /product',
-      'POST /product',
-      'PUT  /product',
-      'DELETE /product',
-      'GET  /product/{id}',
-    ],
+    info: 'Routes are dynamically loaded from handler files',
     environment: {
       AWS_REGION: process.env.AWS_REGION,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT,
-      PRODUCTS_TABLE: process.env.PRODUCTS_TABLE,
     },
   });
 });
 
-// Products routes
-app.get('/product', async (req, res) => {
-  try {
-    const handler = require('./products/getAllProducts.js');
-    const event = { queryStringParameters: req.query };
-    const result = await handler.handler(event);
-    const statusCode = result.statusCode || 200;
-    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-    res.status(statusCode).json(body);
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
-  }
-});
+// Generic route handler factory
+const createHandler = (handlerPath, methodName = 'handler') => {
+  return async (req, res) => {
+    try {
+      // Check if handler file exists
+      const fullPath = path.join(__dirname, handlerPath);
+      if (!fs.existsSync(fullPath)) {
+        return res.status(501).json({ message: 'Handler not implemented', path: req.path });
+      }
 
-app.post('/product', async (req, res) => {
-  try {
-    const handler = require('./products/createProduct.js');
-    const event = { body: JSON.stringify(req.body) };
-    const result = await handler.handler(event);
-    const statusCode = result.statusCode || 200;
-    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-    res.status(statusCode).json(body);
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
-  }
-});
+      // Load handler
+      delete require.cache[require.resolve(fullPath)];
+      const module = require(fullPath);
+      const handler = module[methodName] || module.handler;
 
-app.get('/product/:id', async (req, res) => {
-  try {
-    const handler = require('./products/getById.js');
-    const event = { pathParameters: { id: req.params.id } };
-    const result = await handler.getProductById(event);
-    const statusCode = result.statusCode || 200;
-    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-    res.status(statusCode).json(body);
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
-  }
-});
+      if (!handler || typeof handler !== 'function') {
+        return res.status(501).json({ message: 'Handler method not found', path: req.path });
+      }
 
-app.put('/product', async (req, res) => {
-  try {
-    const handler = require('./products/updateProduct.js');
-    const event = { body: JSON.stringify(req.body) };
-    const result = await handler.handler(event);
-    const statusCode = result.statusCode || 200;
-    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-    res.status(statusCode).json(body);
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
-  }
-});
+      // Build event
+      const event = {
+        pathParameters: req.params || {},
+        queryStringParameters: req.query || {},
+        body: Object.keys(req.body || {}).length > 0 ? JSON.stringify(req.body) : null,
+        headers: req.headers || {},
+        httpMethod: req.method,
+        path: req.path,
+      };
 
-app.delete('/product', async (req, res) => {
-  try {
-    const handler = require('./products/delete.js');
-    const event = { body: JSON.stringify(req.body) };
-    const result = await handler.deleteProduct(event);
-    const statusCode = result.statusCode || 200;
-    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-    res.status(statusCode).json(body);
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ message: 'Internal Server Error', error: error.message });
-  }
-});
+      // Call handler
+      const result = await handler(event);
+      if (!result) {
+        return res.status(500).json({ message: 'Handler returned empty response' });
+      }
+
+      const statusCode = result.statusCode || 200;
+      let body = result.body;
+
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch (e) {
+          // Keep as string
+        }
+      }
+
+      res.status(statusCode).json(body || {});
+    } catch (error) {
+      console.error(`Error handling ${req.method} ${req.path}:`, error.message);
+      res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    }
+  };
+};
+
+// Product routes
+app.get('/product', createHandler('products/getAllProducts.js'));
+app.post('/product', createHandler('products/createProduct.js'));
+app.put('/product', createHandler('products/updateProduct.js'));
+app.delete('/product', createHandler('products/delete.js', 'deleteProduct'));
+app.get('/product/:id', createHandler('products/getById.js', 'getProductById'));
+app.get('/productByGroupId', createHandler('products/getProductByGroupId.js'));
+app.get('/products', createHandler('products/searchApi.js'));
+app.get('/products/search', createHandler('products/globalSearch.js'));
+app.get('/getProductByCategory', createHandler('products/getProductsByCategory.js'));
+app.get('/getProductBySubCategory', createHandler('products/getProductsBySubCategory.js'));
+app.get('/demo', createHandler('products/demo.js'));
+
+// User routes
+app.get('/getAllUsers', createHandler('Users/getAllUsers.js'));
+app.get('/getByUserName', createHandler('Users/getByUserName.js'));
+app.get('/getUserByRole', createHandler('Users/getUserByRole.js'));
+app.post('/createUserAndAddress', createHandler('Users/createUserAndAddress.js'));
+
+// Order routes
+app.get('/order', createHandler('order/getAllOrders.js'));
+app.post('/order', createHandler('order/createOrder.js'));
+app.get('/order/:id', createHandler('order/getOrderById.js'));
+app.get('/order/:userId', createHandler('order/getOrderByuserId.js'));
+
+// Cart routes
+app.post('/cart/addItem', createHandler('cart/addItemsInCart.js'));
+app.put('/cart/updateItem', createHandler('cart/updateItemsInCart.js'));
+app.get('/cart/getItems', createHandler('cart/getItemsInCart.js'));
+app.delete('/cart/deleteItem', createHandler('cart/deleteItemsInCart.js'));
+
+// Category routes
+app.get('/category', createHandler('category/getAllCategory.js'));
+app.post('/category', createHandler('category/createCategory.js'));
+
+// Wishlist routes
+app.post('/addProductInWishList', createHandler('wishlist/addProductInWishList.js'));
+app.get('/getUserWishList', createHandler('wishlist/getUsersInWishList.js'));
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found', path: req.path });
+  res.status(404).json({ message: 'Route not found', path: req.path, method: req.method });
 });
 
 // Error handler
@@ -175,10 +166,8 @@ const server = app.listen(PORT, () => {
   console.log(`  AWS_REGION: ${process.env.AWS_REGION}`);
   console.log(`  DYNAMODB_ENDPOINT: ${process.env.DYNAMODB_ENDPOINT}`);
   console.log(`  PRODUCTS_TABLE: ${process.env.PRODUCTS_TABLE}`);
-  console.log(`\nEndpoints available at:\n`);
-  console.log(`  http://localhost:${PORT}/product`);
-  console.log(`  http://localhost:${PORT}/product/{id}`);
-  console.log(`\nPress Ctrl+C to stop\n`);
+  console.log(`\n✓ Handlers loaded and routes registered`);
+  console.log(`Press Ctrl+C to stop\n`);
 });
 
 // Graceful shutdown
@@ -189,4 +178,3 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
-
