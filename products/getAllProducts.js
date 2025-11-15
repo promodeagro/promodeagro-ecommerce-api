@@ -1,8 +1,15 @@
 const { DynamoDBClient, ScanCommand, QueryCommand } = require("@aws-sdk/client-dynamodb");
 const { unmarshall } = require("@aws-sdk/util-dynamodb");
-require("dotenv").config();
 
-const dynamoDB = new DynamoDBClient({ region: process.env.AWS_REGION });
+const dynamoDBConfig = {
+  region: process.env.AWS_REGION || 'ap-south-1'
+};
+
+if (process.env.DYNAMODB_ENDPOINT) {
+  dynamoDBConfig.endpoint = process.env.DYNAMODB_ENDPOINT;
+}
+
+const dynamoDB = new DynamoDBClient(dynamoDBConfig);
 
 module.exports.handler = async (event) => {
   try {
@@ -26,8 +33,8 @@ module.exports.handler = async (event) => {
 
     if (!productsData.Items || productsData.Items.length === 0) {
       return {
-        statusCode: 404,
-        body: JSON.stringify({ message: "No products found" }),
+        statusCode: 200,
+        body: JSON.stringify({ message: "No products found", products: [] }),
       };
     }
 
@@ -64,7 +71,10 @@ module.exports.handler = async (event) => {
     console.error("Error fetching products:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: "Failed to fetch products", error }),
+      body: JSON.stringify({ 
+        message: "Failed to fetch products", 
+        error: error.message || 'Unknown error'
+      }),
     };
   }
 };
