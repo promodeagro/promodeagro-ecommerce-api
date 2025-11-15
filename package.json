@@ -4,7 +4,10 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:unit": "jest products/tests/unit",
-    "test:integration": "jest products/tests/integration"
+    "test:integration": "jest products/tests/integration",
+    "install:prod": "npm install --omit=dev",
+    "clean": "rm -rf node_modules dist coverage .serverless",
+    "build:prod": "npm install && serverless deploy --stage prod"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.621.0",
@@ -36,7 +39,10 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "jest": "^30.2.0",
-    "serverless": "^3.38.0",
-    "serverless-offline": "^10.0.0"
+    "serverless": "^4.0.0",
+    "serverless-offline": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

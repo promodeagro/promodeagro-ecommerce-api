@@ -1,13 +1,14 @@
 service: promodeAgro-ecommerce-api
 
-frameworkVersion: "3"
+frameworkVersion: "4"
 
 provider:
   name: aws
   stage: ${opt:stage, 'local'}
   region: ap-south-1
   runtime: nodejs18.x
-  role: arn:aws:iam::000000000000:role/lambda-role
+  # Auto-create IAM role with appropriate permissions for Lambda execution
+  # For production, ensure you have proper AWS credentials configured
   versionFunctions: false
   timeout: 29
   logs:
@@ -27,7 +28,8 @@ provider:
   environment:
     STAGE: ${self:provider.stage}
     NODE_ENV: ${env:NODE_ENV, 'development'}
-    AWS_REGION: ${env:AWS_REGION, 'ap-south-1'}
+    # Note: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY are reserved by AWS Lambda
+    # They are automatically set by AWS and cannot be overridden
     REGION: ${env:REGION, 'ap-south-1'}
     DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, 'http://localhost:4566'}
     LOCALSTACK_ENDPOINT: ${env:LOCALSTACK_ENDPOINT, 'http://localhost:4566'}
@@ -40,14 +42,6 @@ provider:
     JWT_SECRET: ${env:JWT_SECRET, 'promode-local-jwt-secret'}
     CART_TABLE: ${env:CART_TABLE, 'cart-local'}
     WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist-local'}
-    AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID, 'test'}
-    AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY, 'test'}
-
-custom:
-  serverless-offline:
-    httpPort: 4000
-    lambdaPort: 3001
-    skipCacheInvalidation: true
 
 functions:
   - ${file(products/function.yml)}
@@ -55,48 +49,131 @@ functions:
   # - ${file(RBAC/function.yml)}
   # - ${file(loginwithotp/function.yml)}
 
-  - ${file(OrderBills/function.yml)}
-  - ${file(Users/function.yml)}
-  - ${file(inventory/function.yml)}
+  # - ${file(OrderBills/function.yml)}
+  # - ${file(Users/function.yml)}
+  # - ${file(inventory/function.yml)}
   # - ${file(Login/function.yml)}
   # - ${file(Customer/function.yml)}
-  - ${file(order/function.yml)}
-  - ${file(payment/function.yml)}
-  - ${file(stepFunctions/function.yml)}
-  - ${file(cart/function.yml)}
-  - ${file(category/function.yml)}
-  - ${file(deliverySlots/function.yml)}
-  - ${file(offers/function.yml)}
-  - ${file(reviews/function.yml)}
-  - ${file(wishlist/function.yml)}
-  - ${file(sales/function.yml)}
-  - ${file(saveForLater/function.yml)}
-  - ${file(payment/function.yml)}
-  - ${file(userSession/function.yml)}
+  # - ${file(order/function.yml)}
+  # - ${file(payment/function.yml)}
+  # - ${file(stepFunctions/function.yml)}
+  # - ${file(cart/function.yml)}
+  # - ${file(category/function.yml)}
+  # - ${file(deliverySlots/function.yml)}
+  # - ${file(offers/function.yml)}
+  # - ${file(reviews/function.yml)}
+  # - ${file(wishlist/function.yml)}
+  # - ${file(sales/function.yml)}
+  # - ${file(saveForLater/function.yml)}
+  # - ${file(payment/function.yml)}
+  # - ${file(userSession/function.yml)}
 
   
   # - ${file(webhooks/function.yml)}
-plugins:
-  - serverless-offline
-#   - serverless-esbuild
+# plugins:
+#   - serverless-offline  # Disabled to speed up packaging for production deployment
 
-# custom:
-#   esbuild:
-#     bundle: true
-#     minify: false
-#     sourcemap: true
-#     exclude: []
-#     format: 'cjs'  # This is crucial for ESM support
-#     concurrency: 10
-#     zipConcurrency: 10
-#     define:
-#       'require.resolve': undefined
-#     platform: 'node'
-#     external:
-#       - 'aws-sdk'
+# Optimized packaging configuration for faster deployment
+# Single package with aggressive exclusions is faster than individual packaging
+package:
+  individually: false  # Single package for all functions (faster deployment)
+  exclude:
+    # AWS SDKs (excluded - built-in to Lambda runtime)
+    - node_modules/aws-sdk/**  # v2 SDK (built-in)
+    - node_modules/@aws-sdk/**  # v3 SDK (built-in)
+    - node_modules/aws-lambda-ric/**
     
-# package:
-#   individually: true
+    # Large dev dependencies (not needed in production)
+    - node_modules/puppeteer-core/**  # Browser automation - Lambda can't use it
+    - node_modules/puppeteer/**  # Browser automation - Lambda can't use it
+    - node_modules/chromium-bidi/**  # Puppeteer dependency
+    - node_modules/@img/**  # Image processing (use Lambda layer instead)
+    - node_modules/sharp/**  # Image processing (use Lambda layer instead)
+    - node_modules/pdf-lib/**  # PDF handling (move to layer if needed)
+    - node_modules/@babel/**  # Transpiler (not needed in production)
+    - node_modules/@types/**  # TypeScript types (dev only)
+    - node_modules/rxjs/**  # Check if really needed
+    - node_modules/class-validator/**  # Validation library
+    - node_modules/libphonenumber-js/**  # Phone number validation
+    - node_modules/timezone-support/**  # Timezone handling
+    
+    # Test and dev tools
+    - node_modules/jest/**
+    - node_modules/serverless/**
+    - node_modules/serverless-offline/**
+    - tests/**
+    - products/tests/**
+    - "**/*.test.js"
+    - "**/*.spec.js"
+    - "**/*.d.ts"  # TypeScript definition files
+    - "**/*.spec.ts"
+    
+    # Git and version control
+    - .git/**
+    - .gitignore
+    - .gitattributes
+    - .github/**
+    
+    # Environment and config files
+    - .env
+    - .env.local
+    - .env.*.local
+    - .env.example
+    - .envrc
+    
+    # Build artifacts
+    - dist/**
+    - build/**
+    - .next/**
+    - .cache/**
+    - .turbo/**
+    
+    # Coverage and reports
+    - coverage/**
+    - .nyc_output/**
+    - htmlcov/**
+    - reports/**
+    
+    # Serverless framework artifacts
+    - .serverless/**
+    - .serverless_plugins/**
+    - serverless.yml.bak
+    
+    # Documentation
+    - README.md
+    - "*.md"
+    - docs/**
+    - doc/**
+    
+    # Node internals
+    - node_modules/.bin/**
+    - node_modules/*/test/**
+    - node_modules/*/tests/**
+    - node_modules/*/example/**
+    - node_modules/*/examples/**
+    - node_modules/*/.github/**
+    - node_modules/*/.git/**
+    - node_modules/*/README.md
+    - node_modules/*/LICENSE
+    - "node_modules/**/*.md"
+    
+    # Package manager files
+    - package-lock.json
+    - yarn.lock
+    - pnpm-lock.yaml
+    
+    # OS files
+    - .DS_Store
+    - Thumbs.db
+    - .env.local
+    - .vscode/**
+    - .idea/**
 
-# useDotenv: true
+# Custom settings
+custom:
+  # These settings help reduce bundle size further if needed
+  serverless-offline:
+    httpPort: 4000
+    lambdaPort: 3001
+    skipCacheInvalidation: true
 

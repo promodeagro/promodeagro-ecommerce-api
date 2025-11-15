@@ -1,0 +1,70 @@
+# Serverless Framework ignore file
+# Files matching these patterns will not be packaged
+
+# Version control
+.git/**
+.gitignore
+.gitattributes
+.github/**
+
+# Dependencies (handled by exclude in serverless.yml)
+node_modules/.bin/**
+node_modules/*/test/**
+node_modules/*/tests/**
+node_modules/*/example/**
+node_modules/*/examples/**
+node_modules/*/.github/**
+node_modules/*/.git/**
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.example
+.envrc
+
+# Build artifacts
+dist/**
+build/**
+.next/**
+.cache/**
+.turbo/**
+
+# Testing
+coverage/**
+.nyc_output/**
+htmlcov/**
+reports/**
+
+# Serverless framework
+.serverless/**
+.serverless_plugins/**
+serverless.yml.bak
+
+# Documentation
+README.md
+*.md
+docs/**
+doc/**
+
+# IDE and OS
+.vscode/**
+.idea/**
+.DS_Store
+Thumbs.db
+*.log
+
+# Package manager locks
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Tests and specs
+**/*.test.js
+**/*.spec.js
+**/*.test.ts
+**/*.spec.ts
+products/tests/**
+tests/**
+test/**
+
