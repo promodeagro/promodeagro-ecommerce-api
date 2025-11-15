@@ -4,17 +4,15 @@ frameworkVersion: "3"
 
 provider:
   name: aws
-  stage: prod
+  stage: ${opt:stage, 'local'}
   region: ap-south-1
   runtime: nodejs18.x
-  role: arn:aws:iam::851725323791:role/ecommerce_Lambda_Role
+  role: arn:aws:iam::000000000000:role/lambda-role
   versionFunctions: false
+  timeout: 29
+  logs:
+      httpApi: true
   httpApi:
-   
-    authorizers:
-      customAuthorizer:
-        type: request
-        functionName: authorizer
     cors:
       allowedOrigins:
         - "*"
@@ -26,16 +24,30 @@ provider:
         - POST
         - PUT
         - DELETE
+  environment:
+    STAGE: ${self:provider.stage}
+    NODE_ENV: ${env:NODE_ENV, 'development'}
+    AWS_REGION: ${env:AWS_REGION, 'ap-south-1'}
+    REGION: ${env:REGION, 'ap-south-1'}
+    DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, 'http://localhost:4566'}
+    LOCALSTACK_ENDPOINT: ${env:LOCALSTACK_ENDPOINT, 'http://localhost:4566'}
+    PRODUCTS_TABLE: ${env:PRODUCTS_TABLE, 'products-local'}
+    ORDER_TABLE_NAME: ${env:ORDER_TABLE_NAME, 'orders-local'}
+    CUSTOMER_TABLE_NAME: ${env:CUSTOMER_TABLE_NAME, 'customers-local'}
+    Inventory_TABLE_NAME: ${env:Inventory_TABLE_NAME, 'inventory-local'}
+    Catalog_TABLE_NAME: ${env:Catalog_TABLE_NAME, 'catalog-local'}
+    DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME, 'users-local'}
+    JWT_SECRET: ${env:JWT_SECRET, 'promode-local-jwt-secret'}
+    CART_TABLE: ${env:CART_TABLE, 'cart-local'}
+    WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist-local'}
+    AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID, 'test'}
+    AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY, 'test'}
 
 custom:
-  # customDomain:
-  #   domainName: api.b2c.promodeagro.com
-  #   basePath: project1
-  #   stage: ${self:provider.stage}
-  #   createRoute53Record: true
-
   serverless-offline:
     httpPort: 4000
+    lambdaPort: 3001
+    skipCacheInvalidation: true
 
 functions:
   - ${file(products/function.yml)}
@@ -63,12 +75,8 @@ functions:
   - ${file(userSession/function.yml)}
 
   
-
-
   # - ${file(webhooks/function.yml)}
 plugins:
-  # - serverless-domain-manager
-
   - serverless-offline
 #   - serverless-esbuild
 

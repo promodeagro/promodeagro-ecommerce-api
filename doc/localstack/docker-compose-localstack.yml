@@ -1,0 +1,46 @@
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: promode-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - DEBUG=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - SERVICES=dynamodb,s3,secrets-manager
+      - AWS_DEFAULT_REGION=ap-south-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - DYNAMODB_SHARE_DB=1
+      - ENFORCE_IAM=0
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./doc/localstack/localstack-init.sh:/docker-entrypoint-initaws.d/init.sh:ro"
+    networks:
+      - promode-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    container_name: promode-dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      - DYNAMO_ENDPOINT=http://localstack:4566
+      - AWS_REGION=ap-south-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - promode-network
+
+networks:
+  promode-network:
+    driver: bridge
