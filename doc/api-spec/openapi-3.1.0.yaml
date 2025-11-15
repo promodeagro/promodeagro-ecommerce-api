@@ -1,0 +1,3582 @@
+openapi: 3.1.0
+info:
+  title: ProMode Agro E-Commerce API
+  description: |
+    Comprehensive REST API for ProMode Agro e-commerce platform. This API handles product management, orders, inventory, payments, deliveries, and customer operations. Built with AWS Lambda and DynamoDB for serverless scalability.
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://promodeagro.com/support
+    email: support@promodeagro.com
+  license:
+    name: Proprietary
+    url: https://promodeagro.com/license
+servers:
+  - url: http://localhost:4000
+    description: Local development server
+  - url: https://api.promodeagro.com
+    description: Production server
+  - url: http://localhost:4566
+    description: LocalStack (local AWS simulation)
+
+tags:
+  - name: Products
+    description: Product catalog management and retrieval
+  - name: Categories
+    description: Product category management
+  - name: Orders
+    description: Order creation, management, and tracking
+  - name: Cart
+    description: Shopping cart operations
+  - name: Inventory
+    description: Inventory tracking and management
+  - name: Customers
+    description: Customer profile and address management
+  - name: Users
+    description: User management and authentication
+  - name: Payment
+    description: Payment processing and webhooks
+  - name: Delivery
+    description: Delivery slots and pincode management
+  - name: Wishlist
+    description: Wishlist and Save for Later operations
+  - name: Reviews
+    description: Product reviews and ratings
+  - name: Offers
+    description: Promotional offers and discounts
+  - name: Sales
+    description: Sales analytics and trending products
+  - name: Bills
+    description: Invoice and bill generation
+  - name: Auth
+    description: Authentication with OTP
+  - name: Webhooks
+    description: Webhook endpoints for external integrations
+
+paths:
+  # ==================== PRODUCTS ====================
+  /product:
+    get:
+      tags:
+        - Products
+      summary: Get all products
+      description: Retrieve paginated list of all products in the catalog
+      operationId: getAllProducts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Items per page
+      responses:
+        '200':
+          description: List of products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Server error
+
+    post:
+      tags:
+        - Products
+      summary: Create a new product
+      description: Add a new product to the catalog with variants and pricing
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid product data
+        '500':
+          description: Server error
+
+    put:
+      tags:
+        - Products
+      summary: Update a product
+      description: Update existing product details including pricing and variants
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+        '400':
+          description: Invalid update data
+        '500':
+          description: Server error
+
+    delete:
+      tags:
+        - Products
+      summary: Delete a product
+      description: Remove a product from the catalog
+      operationId: deleteProduct
+      parameters:
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID of the product to delete
+      responses:
+        '204':
+          description: Product deleted successfully
+        '404':
+          description: Product not found
+        '500':
+          description: Server error
+
+  /product/{id}:
+    get:
+      tags:
+        - Products
+      summary: Get product by ID
+      description: Retrieve detailed information about a specific product
+      operationId: getProductById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product ID
+      responses:
+        '200':
+          description: Product details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+        '500':
+          description: Server error
+
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Search products
+      description: Search products by name, category, or other filters
+      operationId: searchProducts
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by category
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+          description: Minimum price filter
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+          description: Maximum price filter
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /products/search:
+    get:
+      tags:
+        - Products
+      summary: Global search
+      description: Advanced search across all product fields
+      operationId: globalSearch
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /productByGroupId:
+    get:
+      tags:
+        - Products
+      summary: Get products by group ID
+      description: Retrieve products filtered by group ID
+      operationId: getProductsByGroupId
+      parameters:
+        - name: groupId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Group ID to filter by
+      responses:
+        '200':
+          description: Products in group
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /getProductByCategory:
+    get:
+      tags:
+        - Products
+      summary: Get products by category
+      description: Retrieve all products in a specific category
+      operationId: getProductsByCategory
+      parameters:
+        - name: categoryId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Category ID
+      responses:
+        '200':
+          description: Products in category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /getProductBySubCategory:
+    get:
+      tags:
+        - Products
+      summary: Get products by subcategory
+      description: Retrieve all products in a specific subcategory
+      operationId: getProductsBySubCategory
+      parameters:
+        - name: subCategoryId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Subcategory ID
+      responses:
+        '200':
+          description: Products in subcategory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /getProduct:
+    get:
+      tags:
+        - Products
+      summary: Get demo category products
+      description: Get products for demo/homepage display
+      operationId: getDemoProducts
+      responses:
+        '200':
+          description: Demo products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /homePageProducts:
+    get:
+      tags:
+        - Products
+      summary: Get homepage featured products
+      description: Retrieve featured products for homepage display
+      operationId: getHomePageProducts
+      responses:
+        '200':
+          description: Featured products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /homePageProductsDemo:
+    get:
+      tags:
+        - Products
+      summary: Get demo homepage products
+      description: Get demo products for homepage testing
+      operationId: getDemoHomePageProducts
+      responses:
+        '200':
+          description: Demo homepage products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /updatePriceByQty:
+    put:
+      tags:
+        - Products
+      summary: Update product price by quantity
+      description: Update pricing based on quantity tiers
+      operationId: updatePriceByQuantity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                newPrice:
+                  type: number
+              required:
+                - productId
+                - quantity
+                - newPrice
+      responses:
+        '200':
+          description: Price updated successfully
+        '404':
+          description: Product not found
+        '500':
+          description: Server error
+
+  # ==================== CATEGORIES ====================
+  /category:
+    get:
+      tags:
+        - Categories
+      summary: Get all categories
+      description: Retrieve all product categories
+      operationId: getAllCategories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '500':
+          description: Server error
+
+    post:
+      tags:
+        - Categories
+      summary: Create a new category
+      description: Add a new product category
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '201':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid category data
+        '500':
+          description: Server error
+
+  /getAllCategories:
+    get:
+      tags:
+        - Categories
+      summary: Get all categories (alternate endpoint)
+      description: Retrieve all product categories
+      operationId: getAllCategoriesAlt
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '500':
+          description: Server error
+
+  # ==================== ORDERS ====================
+  /order:
+    get:
+      tags:
+        - Orders
+      summary: Get all orders
+      description: Retrieve paginated list of all orders
+      operationId: getAllOrders
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '500':
+          description: Server error
+
+    post:
+      tags:
+        - Orders
+      summary: Create a new order
+      description: Create a new order with items, address, and delivery slot
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid order data
+        '500':
+          description: Server error
+
+  /order/{userId}:
+    get:
+      tags:
+        - Orders
+      summary: Get orders by user ID
+      description: Retrieve all orders for a specific user
+      operationId: getOrdersByUserId
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User's orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /getOrderById/{id}:
+    get:
+      tags:
+        - Orders
+      summary: Get order by ID
+      description: Retrieve detailed information about a specific order
+      operationId: getOrderById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  /updateOrder/{id}:
+    put:
+      tags:
+        - Orders
+      summary: Update order
+      description: Update order details
+      operationId: updateOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                address:
+                  type: object
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Order updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  /updateOrderStatus:
+    put:
+      tags:
+        - Orders
+      summary: Update order status
+      description: Update order status (pending, processing, shipped, delivered, cancelled)
+      operationId: updateOrderStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                status:
+                  type: string
+                  enum: [pending, processing, shipped, delivered, cancelled]
+              required:
+                - orderId
+                - status
+      responses:
+        '200':
+          description: Order status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  /deleteOrderById/{id}:
+    delete:
+      tags:
+        - Orders
+      summary: Delete order
+      description: Delete an order by ID
+      operationId: deleteOrderById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order ID
+      responses:
+        '204':
+          description: Order deleted successfully
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  /cancelOrderRequest:
+    post:
+      tags:
+        - Orders
+      summary: Cancel order request
+      description: Request to cancel an order
+      operationId: cancelOrderRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                reason:
+                  type: string
+              required:
+                - orderId
+      responses:
+        '200':
+          description: Order cancelled successfully
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  # ==================== CART ====================
+  /cart/addItem:
+    post:
+      tags:
+        - Cart
+      summary: Add item to cart
+      description: Add a single product with quantity to cart
+      operationId: addItemToCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItem'
+      responses:
+        '201':
+          description: Item added to cart
+        '400':
+          description: Invalid item data
+        '500':
+          description: Server error
+
+  /cart/addListOfItems:
+    post:
+      tags:
+        - Cart
+      summary: Add multiple items to cart
+      description: Add multiple products to cart in one request
+      operationId: addListOfItemsToCart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CartItem'
+      responses:
+        '201':
+          description: Items added to cart
+        '400':
+          description: Invalid items data
+        '500':
+          description: Server error
+
+  /cart/getItems:
+    get:
+      tags:
+        - Cart
+      summary: Get cart items
+      description: Retrieve all items in user's cart
+      operationId: getCartItems
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Cart items retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CartItem'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /cart/updateItem:
+    put:
+      tags:
+        - Cart
+      summary: Update cart item
+      description: Update quantity of a cart item
+      operationId: updateCartItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CartItem'
+      responses:
+        '200':
+          description: Cart item updated
+        '404':
+          description: Item not found
+        '500':
+          description: Server error
+
+  /cart/updateListOfItems:
+    put:
+      tags:
+        - Cart
+      summary: Update multiple cart items
+      description: Update quantities of multiple cart items
+      operationId: updateCartItems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CartItem'
+      responses:
+        '200':
+          description: Cart items updated
+        '500':
+          description: Server error
+
+  /cart/deleteItem:
+    delete:
+      tags:
+        - Cart
+      summary: Delete cart item
+      description: Remove an item from cart
+      operationId: deleteCartItem
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User ID
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Product ID
+      responses:
+        '204':
+          description: Item removed from cart
+        '404':
+          description: Item not found
+        '500':
+          description: Server error
+
+  /cart/remnoveAll/{userId}:
+    delete:
+      tags:
+        - Cart
+      summary: Remove all items from cart
+      description: Clear entire cart for a user
+      operationId: removeAllCartItems
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '204':
+          description: Cart cleared
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  # ==================== INVENTORY ====================
+  /inventory:
+    get:
+      tags:
+        - Inventory
+      summary: Get all inventory items
+      description: Retrieve all inventory records
+      operationId: getAllInventory
+      responses:
+        '200':
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItem'
+        '500':
+          description: Server error
+
+    post:
+      tags:
+        - Inventory
+      summary: Create inventory item
+      description: Add a new inventory record
+      operationId: createInventoryItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInventoryRequest'
+      responses:
+        '201':
+          description: Inventory item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '400':
+          description: Invalid inventory data
+        '500':
+          description: Server error
+
+  /inventory/{id}:
+    get:
+      tags:
+        - Inventory
+      summary: Get inventory item by ID
+      description: Retrieve a specific inventory record
+      operationId: getInventoryById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Inventory ID
+      responses:
+        '200':
+          description: Inventory item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '404':
+          description: Inventory item not found
+        '500':
+          description: Server error
+
+    put:
+      tags:
+        - Inventory
+      summary: Update inventory item
+      description: Update inventory quantity and details
+      operationId: updateInventoryItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Inventory ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: integer
+                lastUpdated:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Inventory item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '404':
+          description: Inventory item not found
+        '500':
+          description: Server error
+
+    delete:
+      tags:
+        - Inventory
+      summary: Delete inventory item
+      description: Remove an inventory record
+      operationId: deleteInventoryItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Inventory ID
+      responses:
+        '204':
+          description: Inventory item deleted
+        '404':
+          description: Inventory item not found
+        '500':
+          description: Server error
+
+  /getAllInventory:
+    get:
+      tags:
+        - Inventory
+      summary: Get all inventory (alternate endpoint)
+      description: Retrieve all inventory records
+      operationId: getAllInventoryAlt
+      responses:
+        '200':
+          description: All inventory items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryItem'
+        '500':
+          description: Server error
+
+  # ==================== CUSTOMERS ====================
+  /customer:
+    get:
+      tags:
+        - Customers
+      summary: Get all customers
+      description: Retrieve list of all customers
+      operationId: getAllCustomers
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Customer'
+        '500':
+          description: Server error
+
+    post:
+      tags:
+        - Customers
+      summary: Create customer
+      description: Add a new customer record
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          description: Invalid customer data
+        '500':
+          description: Server error
+
+  /customer/{customerId}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer by ID
+      description: Retrieve customer details
+      operationId: getCustomerById
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Customer not found
+        '500':
+          description: Server error
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer
+      description: Update customer details
+      operationId: updateCustomer
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Customer not found
+        '500':
+          description: Server error
+
+    delete:
+      tags:
+        - Customers
+      summary: Delete customer
+      description: Delete a customer record
+      operationId: deleteCustomerById
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Customer ID
+      responses:
+        '204':
+          description: Customer deleted
+        '404':
+          description: Customer not found
+        '500':
+          description: Server error
+
+  /getCustomerByPhone/{phoneNumber}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer by phone
+      description: Retrieve customer by phone number
+      operationId: getCustomerByPhone
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Phone number
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          description: Customer not found
+        '500':
+          description: Server error
+
+  # ==================== USERS ====================
+  /getAllUsers:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      description: Retrieve list of all users
+      operationId: getAllUsers
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '500':
+          description: Server error
+
+  /getByUserName:
+    get:
+      tags:
+        - Users
+      summary: Get user by username
+      description: Retrieve user by username
+      operationId: getUserByUserName
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Username
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /getAllUsersEmail:
+    get:
+      tags:
+        - Users
+      summary: Get all users with emails
+      description: Retrieve all users with email addresses
+      operationId: getAllUsersEmail
+      responses:
+        '200':
+          description: List of users with emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '500':
+          description: Server error
+
+  /get-users-by-role-in-group:
+    get:
+      tags:
+        - Users
+      summary: Get users by role and group
+      description: Retrieve users filtered by role and group
+      operationId: getUsersByRoleInGroup
+      parameters:
+        - name: role
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User role
+        - name: group
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User group
+      responses:
+        '200':
+          description: Users in group with role
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '500':
+          description: Server error
+
+  /addAddress:
+    post:
+      tags:
+        - Users
+      summary: Add user address
+      description: Add a new address for user
+      operationId: addUserAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAddressRequest'
+      responses:
+        '201':
+          description: Address added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '400':
+          description: Invalid address data
+        '500':
+          description: Server error
+
+  /updateAddress:
+    put:
+      tags:
+        - Users
+      summary: Update user address
+      description: Update an existing user address
+      operationId: updateUserAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAddressRequest'
+      responses:
+        '200':
+          description: Address updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '404':
+          description: Address not found
+        '500':
+          description: Server error
+
+  /getAllAddress/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get all user addresses
+      description: Retrieve all addresses for a user
+      operationId: getAllUserAddresses
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /getDefaultAddress/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get default user address
+      description: Retrieve default address for a user
+      operationId: getDefaultUserAddress
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Default address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '404':
+          description: Address not found
+        '500':
+          description: Server error
+
+  /setDefaultAddress:
+    post:
+      tags:
+        - Users
+      summary: Set default address
+      description: Set a user's default delivery address
+      operationId: setDefaultAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                addressId:
+                  type: string
+              required:
+                - userId
+                - addressId
+      responses:
+        '200':
+          description: Default address set
+        '404':
+          description: Address not found
+        '500':
+          description: Server error
+
+  /deleteAddress:
+    delete:
+      tags:
+        - Users
+      summary: Delete address
+      description: Remove an address
+      operationId: deleteAddress
+      parameters:
+        - name: addressId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Address ID
+      responses:
+        '204':
+          description: Address deleted
+        '404':
+          description: Address not found
+        '500':
+          description: Server error
+
+  /changePassword:
+    post:
+      tags:
+        - Auth
+      summary: Change password
+      description: Change user password
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+              required:
+                - userId
+                - currentPassword
+                - newPassword
+      responses:
+        '200':
+          description: Password changed successfully
+        '401':
+          description: Invalid current password
+        '500':
+          description: Server error
+
+  /forgetPassword:
+    post:
+      tags:
+        - Auth
+      summary: Forget password
+      description: Initiate password reset process
+      operationId: forgetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+                - email
+      responses:
+        '200':
+          description: Reset email sent
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /updatePersnalDetail:
+    put:
+      tags:
+        - Users
+      summary: Update personal details
+      description: Update user personal information
+      operationId: updatePersonalDetails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Personal details updated
+        '500':
+          description: Server error
+
+  /getPersnalDetails:
+    get:
+      tags:
+        - Users
+      summary: Get personal details
+      description: Retrieve user personal information
+      operationId: getPersonalDetails
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: Personal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /deleteUser/{userId}:
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete a user account
+      operationId: deleteUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  # ==================== AUTHENTICATION ====================
+  /login:
+    post:
+      tags:
+        - Auth
+      summary: User login
+      description: Authenticate user with credentials
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+        '500':
+          description: Server error
+
+  /login/validate-otp:
+    post:
+      tags:
+        - Auth
+      summary: Validate OTP
+      description: Validate one-time password for login
+      operationId: validateOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+              required:
+                - phone
+                - otp
+      responses:
+        '200':
+          description: OTP validated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid OTP
+        '500':
+          description: Server error
+
+  /signup:
+    post:
+      tags:
+        - Auth
+      summary: User signup
+      description: Create a new user account
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid signup data
+        '409':
+          description: User already exists
+        '500':
+          description: Server error
+
+  /signupwithmno:
+    post:
+      tags:
+        - Auth
+      summary: Signup with phone number
+      description: Create account using phone number
+      operationId: signupWithPhone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                name:
+                  type: string
+              required:
+                - phone
+                - name
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  /signinwithotp:
+    post:
+      tags:
+        - Auth
+      summary: Signin with OTP
+      description: Sign in using OTP authentication
+      operationId: signInWithOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+              required:
+                - phone
+                - otp
+      responses:
+        '200':
+          description: Signin successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid OTP
+        '500':
+          description: Server error
+
+  /generateotp:
+    post:
+      tags:
+        - Auth
+      summary: Generate OTP
+      description: Generate and send OTP to phone number
+      operationId: generateOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+              required:
+                - phone
+      responses:
+        '200':
+          description: OTP sent
+        '400':
+          description: Invalid phone
+        '500':
+          description: Server error
+
+  /verify:
+    post:
+      tags:
+        - Auth
+      summary: Verify phone number
+      description: Verify phone number with OTP
+      operationId: verifyPhone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+              required:
+                - phone
+                - otp
+      responses:
+        '200':
+          description: Phone verified
+        '401':
+          description: Invalid OTP
+        '500':
+          description: Server error
+
+  # ==================== PAYMENT ====================
+  /createRazorPayPaymentOrder:
+    post:
+      tags:
+        - Payment
+      summary: Create Razorpay payment order
+      description: Create a payment order using Razorpay
+      operationId: createRazorPayOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                  default: INR
+              required:
+                - orderId
+                - amount
+      responses:
+        '201':
+          description: Payment order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+        '400':
+          description: Invalid order data
+        '500':
+          description: Server error
+
+  /createPaymentLink:
+    post:
+      tags:
+        - Payment
+      summary: Create payment link
+      description: Create a payment link for checkout
+      operationId: createPaymentLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                amount:
+                  type: number
+                customerEmail:
+                  type: string
+                customerPhone:
+                  type: string
+              required:
+                - orderId
+                - amount
+      responses:
+        '201':
+          description: Payment link created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentLink:
+                    type: string
+                  orderId:
+                    type: string
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  /razorpayWebhook:
+    post:
+      tags:
+        - Payment
+      summary: Razorpay webhook
+      description: Webhook endpoint for Razorpay payment notifications
+      operationId: razorpayWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+        '500':
+          description: Server error
+
+  /cashFreeWebhook:
+    post:
+      tags:
+        - Payment
+      summary: Cashfree webhook
+      description: Webhook endpoint for Cashfree payment notifications
+      operationId: cashfreeWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+        '500':
+          description: Server error
+
+  /phonepayWebhook:
+    post:
+      tags:
+        - Payment
+      summary: PhonePay webhook
+      description: Webhook endpoint for PhonePay payment notifications
+      operationId: phonepayWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+        '500':
+          description: Server error
+
+  # ==================== DELIVERY ====================
+  /deliverySlot:
+    post:
+      tags:
+        - Delivery
+      summary: Create delivery slot
+      description: Create a new delivery time slot
+      operationId: createDeliverySlot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeliverySlotRequest'
+      responses:
+        '201':
+          description: Delivery slot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverySlot'
+        '400':
+          description: Invalid slot data
+        '500':
+          description: Server error
+
+  /getAvailableDeliverySlots:
+    get:
+      tags:
+        - Delivery
+      summary: Get available delivery slots
+      description: Retrieve available delivery slots
+      operationId: getAvailableDeliverySlots
+      parameters:
+        - name: pincode
+          in: query
+          schema:
+            type: string
+          description: Pincode filter
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Date filter
+      responses:
+        '200':
+          description: Available slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliverySlot'
+        '500':
+          description: Server error
+
+  /slots:
+    get:
+      tags:
+        - Delivery
+      summary: Get all slots
+      description: Retrieve all delivery slots
+      operationId: getAllSlots
+      responses:
+        '200':
+          description: All slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliverySlot'
+        '500':
+          description: Server error
+
+  /slots/{pincode}:
+    get:
+      tags:
+        - Delivery
+      summary: Get slots by pincode
+      description: Retrieve delivery slots for a specific pincode
+      operationId: getSlotsByPincode
+      parameters:
+        - name: pincode
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pincode
+      responses:
+        '200':
+          description: Slots for pincode
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliverySlot'
+        '404':
+          description: Pincode not found
+        '500':
+          description: Server error
+
+  /slot/{pincode}:
+    get:
+      tags:
+        - Delivery
+      summary: Get slot by pincode (alternate)
+      description: Retrieve delivery slot for pincode
+      operationId: getSlotByPincode
+      parameters:
+        - name: pincode
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pincode
+      responses:
+        '200':
+          description: Slot information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverySlot'
+        '404':
+          description: Pincode not found
+        '500':
+          description: Server error
+
+  # ==================== WISHLIST ====================
+  /addProductInWishList:
+    post:
+      tags:
+        - Wishlist
+      summary: Add product to wishlist
+      description: Add a product to user's wishlist
+      operationId: addToWishlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                productId:
+                  type: string
+              required:
+                - userId
+                - productId
+      responses:
+        '201':
+          description: Product added to wishlist
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  /removeProductInWishList:
+    delete:
+      tags:
+        - Wishlist
+      summary: Remove product from wishlist
+      description: Remove a product from user's wishlist
+      operationId: removeFromWishlist
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User ID
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Product ID
+      responses:
+        '204':
+          description: Product removed from wishlist
+        '404':
+          description: Not found
+        '500':
+          description: Server error
+
+  /getUserWishList:
+    get:
+      tags:
+        - Wishlist
+      summary: Get user wishlist
+      description: Retrieve user's wishlist
+      operationId: getUserWishlist
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User ID
+      responses:
+        '200':
+          description: User's wishlist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+  /SaveForLater:
+    post:
+      tags:
+        - Wishlist
+      summary: Save product for later
+      description: Save a product for later purchase
+      operationId: saveForLater
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                productId:
+                  type: string
+              required:
+                - userId
+                - productId
+      responses:
+        '201':
+          description: Product saved for later
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  # ==================== REVIEWS ====================
+  /addProductReview:
+    post:
+      tags:
+        - Reviews
+      summary: Add product review
+      description: Submit a review for a product
+      operationId: addProductReview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '201':
+          description: Review added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Review'
+        '400':
+          description: Invalid review data
+        '500':
+          description: Server error
+
+  /getProductReview/{productId}:
+    get:
+      tags:
+        - Reviews
+      summary: Get product reviews
+      description: Retrieve all reviews for a product
+      operationId: getProductReviews
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product ID
+      responses:
+        '200':
+          description: Product reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+        '404':
+          description: Product not found
+        '500':
+          description: Server error
+
+  # ==================== OFFERS ====================
+  /createOffer:
+    post:
+      tags:
+        - Offers
+      summary: Create offer
+      description: Create a new promotional offer
+      operationId: createOffer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOfferRequest'
+      responses:
+        '201':
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          description: Invalid offer data
+        '500':
+          description: Server error
+
+  /updateOffer/{offerId}:
+    put:
+      tags:
+        - Offers
+      summary: Update offer
+      description: Update an existing offer
+      operationId: updateOffer
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Offer ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                discountPercentage:
+                  type: number
+                discountAmount:
+                  type: number
+                validFrom:
+                  type: string
+                  format: date-time
+                validTill:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Offer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '404':
+          description: Offer not found
+        '500':
+          description: Server error
+
+  /getAllOffers:
+    get:
+      tags:
+        - Offers
+      summary: Get all offers
+      description: Retrieve all active and inactive offers
+      operationId: getAllOffers
+      responses:
+        '200':
+          description: List of offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Offer'
+        '500':
+          description: Server error
+
+  /getOffers:
+    get:
+      tags:
+        - Offers
+      summary: Get active offers
+      description: Retrieve all active offers
+      operationId: getActiveOffers
+      responses:
+        '200':
+          description: Active offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Offer'
+        '500':
+          description: Server error
+
+  /getOffersProductsByOffersId/{offerId}:
+    get:
+      tags:
+        - Offers
+      summary: Get offer products
+      description: Retrieve products included in an offer
+      operationId: getOfferProducts
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Offer ID
+      responses:
+        '200':
+          description: Products in offer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '404':
+          description: Offer not found
+        '500':
+          description: Server error
+
+  # ==================== SALES ====================
+  /addSales:
+    post:
+      tags:
+        - Sales
+      summary: Add sales record
+      description: Record a new sales transaction
+      operationId: addSalesRecord
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                productId:
+                  type: string
+                quantity:
+                  type: integer
+                amount:
+                  type: number
+              required:
+                - orderId
+                - productId
+                - quantity
+                - amount
+      responses:
+        '201':
+          description: Sales record added
+        '400':
+          description: Invalid sales data
+        '500':
+          description: Server error
+
+  /getTopSellingProducts:
+    get:
+      tags:
+        - Sales
+      summary: Get top selling products
+      description: Retrieve best-selling products
+      operationId: getTopSellingProducts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of top products
+      responses:
+        '200':
+          description: Top selling products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /getTopSellingCategories:
+    get:
+      tags:
+        - Sales
+      summary: Get top selling categories
+      description: Retrieve best-selling product categories
+      operationId: getTopSellingCategories
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of top categories
+      responses:
+        '200':
+          description: Top selling categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        '500':
+          description: Server error
+
+  /getTopSelngSubcategoryProducts:
+    get:
+      tags:
+        - Sales
+      summary: Get top subcategory products
+      description: Retrieve best-selling subcategory products
+      operationId: getTopSubcategoryProducts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of top products
+      responses:
+        '200':
+          description: Top subcategory products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  # ==================== BILLS ====================
+  /sendBills:
+    post:
+      tags:
+        - Bills
+      summary: Send bill via WhatsApp
+      description: Send order bill/invoice to customer via WhatsApp
+      operationId: sendBill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                phoneNumber:
+                  type: string
+              required:
+                - orderId
+                - phoneNumber
+      responses:
+        '200':
+          description: Bill sent successfully
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  /generate-bill:
+    post:
+      tags:
+        - Bills
+      summary: Generate bill
+      description: Generate invoice for an order
+      operationId: generateBill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+              required:
+                - orderId
+      responses:
+        '200':
+          description: Bill generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  billId:
+                    type: string
+                  billUrl:
+                    type: string
+        '404':
+          description: Order not found
+        '500':
+          description: Server error
+
+  # ==================== WEBHOOKS ====================
+  /webhook:
+    post:
+      tags:
+        - Webhooks
+      summary: Generic webhook
+      description: Generic webhook endpoint for external integrations
+      operationId: handleWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed
+        '500':
+          description: Server error
+
+    get:
+      tags:
+        - Webhooks
+      summary: Webhook status
+      description: Check webhook endpoint status
+      operationId: webhookStatus
+      responses:
+        '200':
+          description: Webhook is active
+        '500':
+          description: Server error
+
+    put:
+      tags:
+        - Webhooks
+      summary: Update webhook
+      description: Update webhook configuration
+      operationId: updateWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook updated
+        '500':
+          description: Server error
+
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete webhook
+      description: Delete webhook endpoint
+      operationId: deleteWebhook
+      responses:
+        '204':
+          description: Webhook deleted
+        '500':
+          description: Server error
+
+  # ==================== UTILITIES ====================
+  /demo:
+    get:
+      tags:
+        - Products
+      summary: Demo endpoint
+      description: Demo/test endpoint for API testing
+      operationId: demoEndpoint
+      responses:
+        '200':
+          description: Demo response
+        '500':
+          description: Server error
+
+  /getSecrets:
+    get:
+      tags:
+        - Products
+      summary: Get secrets
+      description: Retrieve system secrets (admin only)
+      operationId: getSecrets
+      responses:
+        '200':
+          description: Secrets retrieved
+        '403':
+          description: Unauthorized
+        '500':
+          description: Server error
+
+  /getproducts:
+    get:
+      tags:
+        - Products
+      summary: Get products (alternate endpoint)
+      description: Alternative endpoint to get products
+      operationId: getProductsAlt
+      responses:
+        '200':
+          description: Products list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '500':
+          description: Server error
+
+  /groupsDynamic:
+    post:
+      tags:
+        - Users
+      summary: Dynamic groups management
+      description: Manage dynamic user groups
+      operationId: manageDynamicGroups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Groups managed
+        '500':
+          description: Server error
+
+  /saveSession:
+    post:
+      tags:
+        - Users
+      summary: Save user session
+      description: Save user session data
+      operationId: saveSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Session saved
+        '500':
+          description: Server error
+
+  /createFeedback:
+    post:
+      tags:
+        - Users
+      summary: Create feedback
+      description: Submit user feedback
+      operationId: createFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                feedback:
+                  type: string
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+              required:
+                - userId
+                - feedback
+      responses:
+        '201':
+          description: Feedback submitted
+        '400':
+          description: Invalid feedback data
+        '500':
+          description: Server error
+
+  /createUserAndAddress:
+    post:
+      tags:
+        - Users
+      summary: Create user with address
+      description: Create new user account with address in one request
+      operationId: createUserAndAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/CreateUserRequest'
+                address:
+                  $ref: '#/components/schemas/CreateAddressRequest'
+      responses:
+        '201':
+          description: User and address created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  address:
+                    $ref: '#/components/schemas/Address'
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  /createUserInWhatsaapCommerce:
+    post:
+      tags:
+        - Users
+      summary: Create user in WhatsApp Commerce
+      description: Create user account linked to WhatsApp Commerce
+      operationId: createUserInWhatsappCommerce
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                name:
+                  type: string
+              required:
+                - phone
+                - name
+      responses:
+        '201':
+          description: User created in WhatsApp Commerce
+        '400':
+          description: Invalid data
+        '500':
+          description: Server error
+
+  /getUserByNumber:
+    get:
+      tags:
+        - Users
+      summary: Get user by phone number
+      description: Retrieve user details by phone number
+      operationId: getUserByPhoneNumber
+      parameters:
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Phone number
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+        '500':
+          description: Server error
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique product ID
+        name:
+          type: string
+          description: Product name
+        description:
+          type: string
+          description: Product description
+        categoryId:
+          type: string
+          description: Category ID
+        categoryName:
+          type: string
+          description: Category name
+        subCategoryId:
+          type: string
+          description: Subcategory ID
+        subCategoryName:
+          type: string
+          description: Subcategory name
+        basePrice:
+          type: number
+          description: Base price
+        variants:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+              price:
+                type: number
+              stock:
+                type: integer
+        images:
+          type: array
+          items:
+            type: string
+        rating:
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+        inStock:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - categoryId
+
+    CreateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Product name
+        description:
+          type: string
+          description: Product description
+        categoryId:
+          type: string
+          description: Category ID
+        subCategoryId:
+          type: string
+          description: Subcategory ID
+        basePrice:
+          type: number
+          description: Base price
+        variants:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              quantity:
+                type: number
+              unit:
+                type: string
+              price:
+                type: number
+              stock:
+                type: integer
+        images:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - categoryId
+        - basePrice
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: string
+        basePrice:
+          type: number
+        variants:
+          type: array
+          items:
+            type: object
+        images:
+          type: array
+          items:
+            type: string
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Category ID
+        name:
+          type: string
+          description: Category name
+        description:
+          type: string
+          description: Category description
+        image:
+          type: string
+          description: Category image URL
+        productCount:
+          type: integer
+          description: Number of products in category
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+
+    CreateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Category name
+        description:
+          type: string
+          description: Category description
+        image:
+          type: string
+          description: Category image URL
+      required:
+        - name
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Order ID
+        userId:
+          type: string
+          description: Customer user ID
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              productName:
+                type: string
+              quantity:
+                type: integer
+              price:
+                type: number
+              total:
+                type: number
+        totalAmount:
+          type: number
+          description: Total order amount
+        deliveryCharge:
+          type: number
+          description: Delivery charge
+        status:
+          type: string
+          enum: [pending, processing, shipped, delivered, cancelled]
+          description: Order status
+        address:
+          $ref: '#/components/schemas/Address'
+        deliverySlot:
+          type: object
+          properties:
+            date:
+              type: string
+              format: date
+            startTime:
+              type: string
+            endTime:
+              type: string
+        paymentMethod:
+          type: string
+          enum: [card, upi, netbanking, cod]
+        paymentStatus:
+          type: string
+          enum: [pending, completed, failed]
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - items
+        - totalAmount
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Customer user ID
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: integer
+              price:
+                type: number
+        addressId:
+          type: string
+          description: Delivery address ID
+        deliverySlotId:
+          type: string
+          description: Delivery slot ID
+        paymentMethod:
+          type: string
+          enum: [card, upi, netbanking, cod]
+        notes:
+          type: string
+      required:
+        - userId
+        - items
+        - addressId
+        - deliverySlotId
+        - paymentMethod
+
+    CartItem:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User ID
+        productId:
+          type: string
+          description: Product ID
+        variantId:
+          type: string
+          description: Product variant ID
+        quantity:
+          type: integer
+          description: Item quantity
+        price:
+          type: number
+          description: Item price
+        addedAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - productId
+        - quantity
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        reorderLevel:
+          type: integer
+        location:
+          type: string
+        lastUpdated:
+          type: string
+          format: date-time
+      required:
+        - id
+        - productId
+        - quantity
+
+    CreateInventoryRequest:
+      type: object
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        reorderLevel:
+          type: integer
+        location:
+          type: string
+      required:
+        - productId
+        - quantity
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+          description: Primary phone number
+        name:
+          type: string
+        email:
+          type: string
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Address'
+        totalOrders:
+          type: integer
+        totalSpent:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - phone
+        - name
+
+    CreateCustomerRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          description: Phone number
+        name:
+          type: string
+          description: Customer name
+        email:
+          type: string
+          description: Email address
+      required:
+        - phone
+        - name
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User ID
+        username:
+          type: string
+          description: Username
+        email:
+          type: string
+          description: Email address
+        phone:
+          type: string
+          description: Phone number
+        firstName:
+          type: string
+          description: First name
+        lastName:
+          type: string
+          description: Last name
+        role:
+          type: string
+          enum: [customer, admin, seller]
+          description: User role
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+
+    CreateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Username
+        email:
+          type: string
+          description: Email address
+        phone:
+          type: string
+          description: Phone number
+        password:
+          type: string
+          description: Password
+        firstName:
+          type: string
+          description: First name
+        lastName:
+          type: string
+          description: Last name
+      required:
+        - username
+        - email
+        - password
+
+    Address:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Address ID
+        userId:
+          type: string
+          description: User ID
+        type:
+          type: string
+          enum: [home, work, other]
+          description: Address type
+        recipientName:
+          type: string
+          description: Recipient name
+        phone:
+          type: string
+          description: Phone number
+        addressLine1:
+          type: string
+          description: Street address
+        addressLine2:
+          type: string
+          description: Apartment/Suite number
+        city:
+          type: string
+          description: City
+        state:
+          type: string
+          description: State/Province
+        postalCode:
+          type: string
+          description: Postal code/Pincode
+        country:
+          type: string
+          description: Country
+        isDefault:
+          type: boolean
+          description: Is default address
+      required:
+        - userId
+        - recipientName
+        - addressLine1
+        - city
+        - state
+        - postalCode
+
+    CreateAddressRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User ID
+        type:
+          type: string
+          enum: [home, work, other]
+        recipientName:
+          type: string
+        phone:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+      required:
+        - userId
+        - recipientName
+        - addressLine1
+        - city
+        - state
+        - postalCode
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        addressId:
+          type: string
+        recipientName:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Email or username
+        password:
+          type: string
+          description: Password
+      required:
+        - email
+        - password
+
+    SignupRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Username
+        email:
+          type: string
+          description: Email address
+        password:
+          type: string
+          description: Password
+        phone:
+          type: string
+          description: Phone number
+        firstName:
+          type: string
+          description: First name
+        lastName:
+          type: string
+          description: Last name
+      required:
+        - username
+        - email
+        - password
+        - phone
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT authentication token
+        userId:
+          type: string
+          description: User ID
+        username:
+          type: string
+          description: Username
+        email:
+          type: string
+          description: Email address
+        role:
+          type: string
+          description: User role
+      required:
+        - token
+        - userId
+        - username
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        userId:
+          type: string
+        userName:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateReviewRequest:
+      type: object
+      properties:
+        productId:
+          type: string
+        userId:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        title:
+          type: string
+        comment:
+          type: string
+      required:
+        - productId
+        - userId
+        - rating
+
+    Offer:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        discountPercentage:
+          type: number
+        discountAmount:
+          type: number
+        validFrom:
+          type: string
+          format: date-time
+        validTill:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+        applicableProducts:
+          type: array
+          items:
+            type: string
+
+    CreateOfferRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        discountPercentage:
+          type: number
+        discountAmount:
+          type: number
+        validFrom:
+          type: string
+          format: date-time
+        validTill:
+          type: string
+          format: date-time
+        applicableProducts:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - validFrom
+        - validTill
+
+    DeliverySlot:
+      type: object
+      properties:
+        id:
+          type: string
+        pincode:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        capacity:
+          type: integer
+        booked:
+          type: integer
+        isAvailable:
+          type: boolean
+      required:
+        - id
+        - pincode
+        - date
+        - startTime
+        - endTime
+
+    CreateDeliverySlotRequest:
+      type: object
+      properties:
+        pincode:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        capacity:
+          type: integer
+      required:
+        - pincode
+        - date
+        - startTime
+        - endTime
+        - capacity
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login/signup
+
+security:
+  - bearerAuth: []
+

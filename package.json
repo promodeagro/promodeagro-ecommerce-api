@@ -1,4 +1,11 @@
 {
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest products/tests/unit",
+    "test:integration": "jest products/tests/integration"
+  },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.621.0",
     "@aws-sdk/client-s3": "^3.621.0",
@@ -27,6 +34,8 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
     "serverless": "^3.38.0",
     "serverless-offline": "^10.0.0"
   }
