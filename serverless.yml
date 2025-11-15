@@ -27,21 +27,24 @@ provider:
         - DELETE
   environment:
     STAGE: ${self:provider.stage}
-    NODE_ENV: ${env:NODE_ENV, 'development'}
+    NODE_ENV: ${self:provider.stage}
     # Note: AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY are reserved by AWS Lambda
     # They are automatically set by AWS and cannot be overridden
-    REGION: ${env:REGION, 'ap-south-1'}
-    DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, 'http://localhost:4566'}
-    LOCALSTACK_ENDPOINT: ${env:LOCALSTACK_ENDPOINT, 'http://localhost:4566'}
-    PRODUCTS_TABLE: ${env:PRODUCTS_TABLE, 'products-local'}
-    ORDER_TABLE_NAME: ${env:ORDER_TABLE_NAME, 'orders-local'}
-    CUSTOMER_TABLE_NAME: ${env:CUSTOMER_TABLE_NAME, 'customers-local'}
-    Inventory_TABLE_NAME: ${env:Inventory_TABLE_NAME, 'inventory-local'}
-    Catalog_TABLE_NAME: ${env:Catalog_TABLE_NAME, 'catalog-local'}
-    DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME, 'users-local'}
-    JWT_SECRET: ${env:JWT_SECRET, 'promode-local-jwt-secret'}
-    CART_TABLE: ${env:CART_TABLE, 'cart-local'}
-    WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist-local'}
+    REGION: ${self:provider.region}
+    # For production (prod stage), use real AWS DynamoDB (no DYNAMODB_ENDPOINT set)
+    # For local development, use LocalStack (set DYNAMODB_ENDPOINT via .env.local)
+    DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, ''}
+    LOCALSTACK_ENDPOINT: ${env:LOCALSTACK_ENDPOINT, ''}
+    # Production table names
+    PRODUCTS_TABLE: ${env:PRODUCTS_TABLE, 'products'}
+    ORDER_TABLE_NAME: ${env:ORDER_TABLE_NAME, 'orders'}
+    CUSTOMER_TABLE_NAME: ${env:CUSTOMER_TABLE_NAME, 'customers'}
+    Inventory_TABLE_NAME: ${env:Inventory_TABLE_NAME, 'inventory'}
+    Catalog_TABLE_NAME: ${env:Catalog_TABLE_NAME, 'catalog'}
+    DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME, 'users'}
+    JWT_SECRET: ${env:JWT_SECRET, 'change-me-in-production'}
+    CART_TABLE: ${env:CART_TABLE, 'cart'}
+    WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist'}
 
 functions:
   - ${file(products/function.yml)}

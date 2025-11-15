@@ -8,10 +8,17 @@ const AWS = require('aws-sdk');
 class DynamoDBConnection {
   constructor() {
     // Initialize DynamoDB Document Client
-    this.documentClient = new AWS.DynamoDB.DocumentClient({
-      region: process.env.AWS_REGION || 'ap-south-1',
+    const config = {
+      region: process.env.REGION || process.env.AWS_REGION || 'ap-south-1',
       convertEmptyValues: true,
-    });
+    };
+
+    // Use custom endpoint only if explicitly set (for LocalStack/local development)
+    if (process.env.DYNAMODB_ENDPOINT && process.env.DYNAMODB_ENDPOINT.trim()) {
+      config.endpoint = process.env.DYNAMODB_ENDPOINT;
+    }
+
+    this.documentClient = new AWS.DynamoDB.DocumentClient(config);
 
     // Configuration
     this.maxRetries = 3;
