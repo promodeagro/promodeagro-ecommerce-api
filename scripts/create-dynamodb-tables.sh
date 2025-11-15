@@ -4,6 +4,7 @@
 # Usage: ./scripts/create-dynamodb-tables.sh
 # Region: ap-south-1
 # Billing: PAY_PER_REQUEST (on-demand, scales automatically)
+# Tables match Python CLI: products_cli.py
 
 set -e
 
@@ -12,6 +13,7 @@ BILLING_MODE="PAY_PER_REQUEST"
 
 echo "╔════════════════════════════════════════════════════════════════╗"
 echo "║          Creating DynamoDB Tables for Production               ║"
+echo "║        Tables match Python CLI (products_cli.py)               ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 echo "Region: $REGION"
@@ -55,19 +57,20 @@ create_table() {
     echo "✅ $table_name created successfully"
 }
 
-# Create all tables
+# Create all tables (matching Python CLI)
 TABLES=(
-    "products"
-    "orders"
-    "customers"
-    "inventory"
-    "catalog"
-    "users"
-    "cart"
-    "wishlist"
+    "Products"
+    "Category_management"
+    "Unit_management"
+    "Stock_adjustment"
+    "Pincode_management"
+    "Delivery_types"
+    "Delivery_slots"
+    "Customers"
+    "Orders"
 )
 
-echo "Creating tables..."
+echo "Creating 9 tables to match Python CLI (products_cli.py)..."
 echo ""
 
 for table in "${TABLES[@]}"; do
@@ -79,13 +82,18 @@ echo "╔═══════════════════════�
 echo "║                  ✅ ALL TABLES CREATED                         ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
-echo "Tables created:"
+echo "Tables created (matching Python CLI):"
 for table in "${TABLES[@]}"; do
     echo "  ✅ $table"
 done
 echo ""
-echo "Next steps:"
-echo "  1. Redeploy: serverless deploy --stage prod"
-echo "  2. Test: curl https://<api-id>.execute-api.ap-south-1.amazonaws.com/prod/product"
+echo "Table Structure:"
+echo "  • Partition Key: id (String)"
+echo "  • Billing Mode: PAY_PER_REQUEST (on-demand)"
+echo "  • Region: $REGION"
 echo ""
-
+echo "Next steps:"
+echo "  1. Redeploy API: serverless deploy --stage prod"
+echo "  2. Test CLI: python3 products_cli.py"
+echo "  3. Test API: curl https://<api-id>.execute-api.ap-south-1.amazonaws.com/prod/product"
+echo ""

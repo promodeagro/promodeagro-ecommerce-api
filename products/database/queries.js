@@ -6,8 +6,16 @@
 const db = require('./dynamodb');
 
 class ProductQueries {
-  static TABLE_NAME = 'Products';
-  static CATEGORY_TABLE_NAME = 'Category_management';
+  // Table names from environment variables (match Python CLI)
+  static TABLE_NAME = process.env.PRODUCTS_TABLE || 'Products';
+  static CATEGORY_TABLE_NAME = process.env.CATEGORY_TABLE_NAME || 'Category_management';
+  static UNIT_TABLE_NAME = process.env.UNIT_TABLE_NAME || 'Unit_management';
+  static STOCK_ADJUSTMENT_TABLE = process.env.STOCK_ADJUSTMENT_TABLE || 'Stock_adjustment';
+  static PINCODE_TABLE_NAME = process.env.PINCODE_TABLE_NAME || 'Pincode_management';
+  static DELIVERY_TYPES_TABLE = process.env.DELIVERY_TYPES_TABLE || 'Delivery_types';
+  static DELIVERY_SLOTS_TABLE = process.env.DELIVERY_SLOTS_TABLE || 'Delivery_slots';
+  static CUSTOMER_TABLE_NAME = process.env.CUSTOMER_TABLE_NAME || 'Customers';
+  static ORDER_TABLE_NAME = process.env.ORDER_TABLE_NAME || 'Orders';
 
   /**
    * Save product to database

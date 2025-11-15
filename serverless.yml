@@ -13,6 +13,29 @@ provider:
   timeout: 29
   logs:
       httpApi: true
+  # IAM role with DynamoDB permissions for all Lambda functions
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/*"
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource:
+            - "arn:aws:logs:${self:provider.region}:*:*"
   httpApi:
     cors:
       allowedOrigins:
@@ -35,16 +58,17 @@ provider:
     # For local development, use LocalStack (set DYNAMODB_ENDPOINT via .env.local)
     DYNAMODB_ENDPOINT: ${env:DYNAMODB_ENDPOINT, ''}
     LOCALSTACK_ENDPOINT: ${env:LOCALSTACK_ENDPOINT, ''}
-    # Production table names
-    PRODUCTS_TABLE: ${env:PRODUCTS_TABLE, 'products'}
-    ORDER_TABLE_NAME: ${env:ORDER_TABLE_NAME, 'orders'}
-    CUSTOMER_TABLE_NAME: ${env:CUSTOMER_TABLE_NAME, 'customers'}
-    Inventory_TABLE_NAME: ${env:Inventory_TABLE_NAME, 'inventory'}
-    Catalog_TABLE_NAME: ${env:Catalog_TABLE_NAME, 'catalog'}
-    DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME, 'users'}
+    # Production table names (matching Python CLI)
+    PRODUCTS_TABLE: ${env:PRODUCTS_TABLE, 'Products'}
+    ORDER_TABLE_NAME: ${env:ORDER_TABLE_NAME, 'Orders'}
+    CUSTOMER_TABLE_NAME: ${env:CUSTOMER_TABLE_NAME, 'Customers'}
+    CATEGORY_TABLE_NAME: ${env:CATEGORY_TABLE_NAME, 'Category_management'}
+    UNIT_TABLE_NAME: ${env:UNIT_TABLE_NAME, 'Unit_management'}
+    STOCK_ADJUSTMENT_TABLE: ${env:STOCK_ADJUSTMENT_TABLE, 'Stock_adjustment'}
+    PINCODE_TABLE_NAME: ${env:PINCODE_TABLE_NAME, 'Pincode_management'}
+    DELIVERY_TYPES_TABLE: ${env:DELIVERY_TYPES_TABLE, 'Delivery_types'}
+    DELIVERY_SLOTS_TABLE: ${env:DELIVERY_SLOTS_TABLE, 'Delivery_slots'}
     JWT_SECRET: ${env:JWT_SECRET, 'change-me-in-production'}
-    CART_TABLE: ${env:CART_TABLE, 'cart'}
-    WISHLIST_TABLE: ${env:WISHLIST_TABLE, 'wishlist'}
 
 functions:
   - ${file(products/function.yml)}
